@@ -8,8 +8,8 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    navigate('/', { replace: true });
     logout();
-    navigate('/');
   };
 
   const dashboardRoute = user?.role === 'tutor' ? '/tutor' : '/student';
