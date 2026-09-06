@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles, AlertCircle, ArrowLeft, CheckCircle2, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage({ onLoginSuccess, onBackHome }) {
-  const { login, authError, setAuthError } = useAuth();
+  const { user, isAuthenticated, login, authError, setAuthError } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // If already authenticated, redirect to appropriate role dashboard
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const defaultPath = user.role === 'tutor' ? '/tutor' : '/student';
+      const fromPath = location.state?.from?.pathname;
+      navigate(fromPath || defaultPath, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate, location]);
 
   // Quick fill test accounts
   const fillTutor = () => {
@@ -37,6 +50,17 @@ export default function LoginPage({ onLoginSuccess, onBackHome }) {
       if (onLoginSuccess) {
         onLoginSuccess(result.user);
       }
+      const defaultPath = result.user.role === 'tutor' ? '/tutor' : '/student';
+      const fromPath = location.state?.from?.pathname;
+      navigate(fromPath || defaultPath, { replace: true });
+    }
+  };
+
+  const handleBack = () => {
+    if (onBackHome) {
+      onBackHome();
+    } else {
+      navigate('/');
     }
   };
 
@@ -44,7 +68,7 @@ export default function LoginPage({ onLoginSuccess, onBackHome }) {
     <div className="auth-page-container">
       <div className="auth-card">
         {/* Back link */}
-        <button onClick={onBackHome} className="btn-back">
+        <button onClick={handleBack} className="btn-back">
           <ArrowLeft size={16} />
           <span>Back to Home</span>
         </button>

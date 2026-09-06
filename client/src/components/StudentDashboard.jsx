@@ -1,10 +1,20 @@
 import React from 'react';
-import { BookOpen, Calendar, Bot, CheckCircle2, Shield, Lock, ArrowRight, UserCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, Calendar, Bot, Shield, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import RoleTester from './RoleTester';
 
 export default function StudentDashboard({ onAttemptTutorPage }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleAttemptTutor = () => {
+    if (onAttemptTutorPage) {
+      onAttemptTutorPage();
+    } else {
+      navigate('/tutor');
+    }
+  };
 
   return (
     <div className="dashboard-container">
@@ -64,7 +74,7 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
           </div>
         </div>
         <button
-          onClick={onAttemptTutorPage}
+          onClick={handleAttemptTutor}
           className="btn-test-rbac"
           title="Attempt to open Tutor Management Console"
         >

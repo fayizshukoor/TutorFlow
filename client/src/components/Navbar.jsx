@@ -1,58 +1,64 @@
 import React from 'react';
-import { BookOpen, LogOut, User as UserIcon, Shield, Sparkles, LayoutDashboard, Home, Lock } from 'lucide-react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Navbar({ currentView, setCurrentView }) {
+export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  const dashboardRoute = user?.role === 'tutor' ? '/tutor' : '/student';
 
   return (
     <header className="header">
       <div className="container header-inner">
         {/* Logo */}
-        <button 
-          onClick={() => setCurrentView('home')} 
-          className="logo-btn"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-        >
+        <Link to="/" className="logo-btn" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="logo">
             <div className="logo-icon">
               <BookOpen size={20} />
             </div>
             <span>TutorFlow</span>
           </div>
-        </button>
+        </Link>
 
         {/* Navigation Links */}
         <nav className="nav-links">
-          <button 
-            className={`nav-link ${currentView === 'home' ? 'active' : ''}`}
-            onClick={() => setCurrentView('home')}
+          <NavLink 
+            to="/" 
+            end
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
             <Home size={16} />
             <span>Home</span>
-          </button>
+          </NavLink>
 
           {isAuthenticated && (
-            <button 
-              className={`nav-link ${currentView === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setCurrentView('dashboard')}
+            <NavLink 
+              to={dashboardRoute}
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
               <LayoutDashboard size={16} />
               <span>Dashboard</span>
-            </button>
+            </NavLink>
           )}
 
           {/* Test Access Control button to easily demo student attempting tutor view */}
           {isAuthenticated && (
-            <button 
-              className={`nav-link ${currentView === 'tutor-only-page' ? 'active' : ''}`}
-              onClick={() => setCurrentView('tutor-only-page')}
+            <NavLink 
+              to="/tutor"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               title={user?.role === 'student' ? 'Click to test student accessing tutor-only route (Access Denied demo)' : 'Tutor Management Console'}
             >
               <Lock size={16} />
               <span>Tutor Console</span>
               {user?.role === 'student' && <span className="nav-pill-warning">Test 403</span>}
-            </button>
+            </NavLink>
           )}
         </nav>
 
@@ -73,7 +79,7 @@ export default function Navbar({ currentView, setCurrentView }) {
               </div>
 
               <button 
-                onClick={logout} 
+                onClick={handleLogout} 
                 className="btn-logout"
                 title="Sign out of TutorFlow"
               >
@@ -82,13 +88,10 @@ export default function Navbar({ currentView, setCurrentView }) {
               </button>
             </div>
           ) : (
-            <button 
-              onClick={() => setCurrentView('login')} 
-              className="btn-login-header"
-            >
+            <Link to="/login" className="btn-login-header" style={{ textDecoration: 'none' }}>
               <UserIcon size={16} />
               <span>Sign In</span>
-            </button>
+            </Link>
           )}
         </div>
       </div>

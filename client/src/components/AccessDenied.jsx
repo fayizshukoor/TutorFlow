@@ -1,9 +1,29 @@
 import React from 'react';
-import { ShieldAlert, ArrowLeft, Lock, UserX, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function AccessDenied({ onBackToDashboard }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleReturn = () => {
+    if (onBackToDashboard) {
+      onBackToDashboard();
+    } else if (user?.role === 'student') {
+      navigate('/student');
+    } else if (user?.role === 'tutor') {
+      navigate('/tutor');
+    } else {
+      navigate('/');
+    }
+  };
+
+  const returnLabel = user?.role === 'student' 
+    ? 'Return to Student Dashboard' 
+    : user?.role === 'tutor'
+    ? 'Return to Tutor Dashboard'
+    : 'Return to Home';
 
   return (
     <div className="access-denied-container">
@@ -39,9 +59,9 @@ export default function AccessDenied({ onBackToDashboard }) {
         </div>
 
         <div className="access-denied-actions">
-          <button onClick={onBackToDashboard} className="btn-return-dashboard">
+          <button onClick={handleReturn} className="btn-return-dashboard">
             <ArrowLeft size={16} />
-            <span>Return to Student Dashboard</span>
+            <span>{returnLabel}</span>
           </button>
         </div>
 

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, PlusCircle, CheckCircle2, Lock, ArrowLeft, RefreshCw, Key, Database } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Shield, CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function TutorConsole({ onBack }) {
-  const { authFetch, user } = useAuth();
+  const { authFetch } = useAuth();
+  const navigate = useNavigate();
   const [tutorData, setTutorData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -22,10 +24,18 @@ export default function TutorConsole({ onBack }) {
     loadTutorData();
   }, [authFetch]);
 
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate('/tutor');
+    }
+  };
+
   return (
     <div className="dashboard-container">
       <div className="console-nav">
-        <button onClick={onBack} className="btn-back">
+        <button onClick={handleBack} className="btn-back">
           <ArrowLeft size={16} />
           <span>Back to Dashboard</span>
         </button>
