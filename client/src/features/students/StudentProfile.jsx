@@ -19,7 +19,8 @@ import {
   Clock,
   ArrowRight,
   ListChecks,
-  HelpCircle
+  HelpCircle,
+  TrendingUp
 } from 'lucide-react';
 import { studentApi, sessionApi } from '../../services/api';
 import SessionScheduleModal from '../sessions/SessionScheduleModal';
@@ -54,6 +55,10 @@ export default function StudentProfile() {
   const [planGenerating, setPlanGenerating] = useState(false);
   const [planError, setPlanError] = useState(null);
   const [activePlanSession, setActivePlanSession] = useState(null);
+
+  // AI Progress Summary state
+  const [summaryGenerating, setSummaryGenerating] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
 
   const fetchStudent = useCallback(async () => {
     setLoading(true);
@@ -131,6 +136,24 @@ export default function StudentProfile() {
       setPlanError(err.message || 'AI Plan generation failed. Please click Retry.');
     } finally {
       setPlanGenerating(false);
+    }
+  };
+
+  // AI Progress Summary generation handler
+  const handleGenerateProgressSummary = async () => {
+    setSummaryGenerating(true);
+    setSummaryError(null);
+    try {
+      const { ok, data } = await studentApi.generateProgressSummary(id);
+      if (!ok) {
+        throw new Error(data.message || data.error || 'Failed to generate student progress summary.');
+      }
+      setStudent(data.student);
+    } catch (err) {
+      console.error('AI Progress Summary generation error:', err);
+      setSummaryError(err.message || 'Progress summary generation failed. Please click Retry.');
+    } finally {
+      setSummaryGenerating(false);
     }
   };
 
@@ -630,8 +653,148 @@ export default function StudentProfile() {
       ) : (
         /* ================== VIEW MODE ================== */
         <div className="profile-view-grid">
-          {/* Left Column: Goals & Weaknesses */}
+          {/* Left Column: Progress Trajectory, Goals & Weaknesses */}
           <div className="profile-main-col">
+            {/* Gemini AI Cumulative Progress Trajectory Card */}
+            <div className="profile-card ai-progress-card">
+              <div className="profile-card-header">
+                <div className="card-title-group">
+                  <div className="card-icon-wrap" style={{ background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))', color: '#A855F7' }}>
+                    <TrendingUp size={18} />
+                  </div>
+                  <div>
+                    <h3 className="card-title">Gemini AI Progress Trajectory</h3>
+                    <p className="card-subtitle">Cumulative performance synthesis across past AI-reviewed sessions</p>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {student.progressSummaryGeneratedAt && (
+                    <span className="summary-date-badge">
+                      <Clock size={11} /> {new Date(student.progressSummaryGeneratedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  {student.progressSummaryModel && (
+                    <span className="ai-model-pill">
+                      <Sparkles size={11} /> {student.progressSummaryModel}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleGenerateProgressSummary}
+                    className="btn-generate-summary"
+                    disabled={summaryGenerating}
+                    title={student.progressSummary?.summary ? "Regenerate Progress Summary" : "Generate Progress Summary"}
+                  >
+                    <RefreshCw size={13} className={summaryGenerating ? 'spin' : ''} />
+                    <span>
+                      {summaryGenerating
+                        ? 'Synthesizing...'
+                        : student.progressSummary?.summary
+                        ? 'Regenerate Summary'
+                        : 'Generate Progress Summary'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Generating In-Progress State */}
+              {summaryGenerating && (
+                <div className="ai-generating-container" style={{ margin: '1rem 0' }}>
+                  <div className="spinner-large" />
+                  <p className="ai-generating-text">Synthesizing Cumulative Progress with Gemini AI...</p>
+                  <p className="ai-generating-hint">
+                    Analyzing all completed session reviews, breakthroughs, and improvement areas for {student.name} to determine learning velocity and focus priorities.
+                  </p>
+                </div>
+              )}
+
+              {/* Error Alert with Retry */}
+              {summaryError && (
+                <div className="form-alert error" style={{ margin: '0.75rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.85rem' }}>{summaryError}</span>
+                  </div>
+                  <button
+                    onClick={handleGenerateProgressSummary}
+                    className="btn-secondary"
+                    disabled={summaryGenerating}
+                    style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                  >
+                    <RefreshCw size={11} /> Retry
+                  </button>
+                </div>
+              )}
+
+              {/* Render Structured Summary if Present */}
+              {!summaryGenerating && student.progressSummary?.summary ? (
+                <div className="progress-summary-body">
+                  {/* Executive Narrative */}
+                  <div className="progress-narrative-box">
+                    <p>{student.progressSummary.summary}</p>
+                  </div>
+
+                  {/* 3 Structured Columns: Improving, Struggling, Recommended Focus */}
+                  <div className="progress-cols-grid">
+                    {/* Improving Areas */}
+                    <div className="progress-col improving">
+                      <h4 className="progress-col-title improving">
+                        <CheckCircle2 size={15} />
+                        <span>Improving Areas ({student.progressSummary.improvingAreas?.length || 0})</span>
+                      </h4>
+                      <div className="progress-items-list">
+                        {student.progressSummary.improvingAreas?.map((item, idx) => (
+                          <div key={idx} className="progress-item improving">
+                            <div className="progress-bullet improving" />
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Continuing Difficulties */}
+                    <div className="progress-col struggling">
+                      <h4 className="progress-col-title struggling">
+                        <AlertTriangle size={15} />
+                        <span>Continuing Difficulties ({student.progressSummary.strugglingAreas?.length || 0})</span>
+                      </h4>
+                      <div className="progress-items-list">
+                        {student.progressSummary.strugglingAreas?.map((item, idx) => (
+                          <div key={idx} className="progress-item struggling">
+                            <div className="progress-bullet struggling" />
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Recommended Next Focus */}
+                    <div className="progress-col focus">
+                      <h4 className="progress-col-title focus">
+                        <Target size={15} />
+                        <span>Recommended Focus ({student.progressSummary.recommendedFocus?.length || 0})</span>
+                      </h4>
+                      <div className="progress-items-list">
+                        {student.progressSummary.recommendedFocus?.map((item, idx) => (
+                          <div key={idx} className="progress-item focus">
+                            <div className="progress-bullet focus" />
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : !summaryGenerating && (
+                <div className="empty-subcard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '1.5rem', gap: '0.75rem' }}>
+                  <Sparkles size={24} style={{ color: '#818CF8' }} />
+                  <p style={{ margin: 0, maxWidth: '480px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                    No progress summary has been generated yet. Click <strong>"Generate Progress Summary"</strong> to synthesize {student.name}'s performance history across all past completed session reviews with Gemini AI.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Learning Goals Section Card */}
             <div className="profile-card">
               <div className="profile-card-header">

@@ -9,7 +9,8 @@
     "dev": "node --watch src/index.js",
     "seed": "node src/scripts/seed.js",
     "test:milestone5": "node src/scripts/test-milestone5.js",
-    "test:ai-plan": "node src/scripts/test-ai-plan.js"
+    "test:ai-plan": "node src/scripts/test-ai-plan.js",
+    "test:progress-summary": "node src/scripts/test-progress-summary.js"
   },
   "keywords": [
     "tutorflow",

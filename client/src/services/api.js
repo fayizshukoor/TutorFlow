@@ -125,6 +125,14 @@ export const studentApi = {
     const res = await apiRequest('/students/profile/me');
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
+  },
+
+  generateProgressSummary: async (id) => {
+    const res = await apiRequest(`/students/${id}/progress-summary`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
   }
 };
 

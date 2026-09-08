@@ -50,6 +50,13 @@ Student access is read-only and limited to student routes. Attempting to access 
    - Click the interactive checkboxes to toggle homework tasks complete/incomplete.
    - Notice the saving indicator, live completion timestamps, and persistent database storage across page refreshes.
 
+4. **Multi-Session AI Progress Trajectory (`tutor@tutorflow.com`):**
+   - Log in as the tutor and navigate to `/tutor/students`.
+   - Click on **Sam Chen** to open the student profile.
+   - Scroll down to the **"AI Progress Trajectory"** section.
+   - Notice the seeded multi-session analysis or click **"Regenerate Analysis"** / **"Generate Progress Summary"** to trigger a live Gemini analysis synthesizing all past session notes, strengths, and areas for improvement.
+   - Verify the 3-column breakdown displays: *"Concepts Mastered & Improving"*, *"Continuing Difficulties"*, and *"Recommended Focus Areas"*.
+
 ## Notes
 
 - These accounts are created by the database seed script (`npm run seed`).

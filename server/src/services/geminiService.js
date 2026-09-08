@@ -560,3 +560,195 @@ export async function generateSessionPlan(params) {
   finalError.code = 'AI_SERVICE_UNAVAILABLE';
   throw finalError;
 }
+
+/**
+ * Build student cumulative progress summary prompt for Gemini.
+ */
+function buildProgressPrompt(params, isCompactRetry = false) {
+  const {
+    studentName = 'Student',
+    subject = 'Tutoring Subject',
+    currentLevel = 'General',
+    learningGoals = [],
+    weakAreas = [],
+    pastReviewsText = ''
+  } = params;
+
+  const goals = Array.isArray(learningGoals) && learningGoals.length > 0
+    ? learningGoals.slice(0, 4).join(', ')
+    : 'General conceptual mastery';
+
+  const weak = Array.isArray(weakAreas) && weakAreas.length > 0
+    ? weakAreas.slice(0, 4).join(', ')
+    : 'None flagged';
+
+  if (isCompactRetry) {
+    return `You are a tutoring assistant for TutorFlow.
+Create a compact student progress summary for ${studentName} (${subject}, ${currentLevel}).
+Goals: ${goals}
+Weak Areas: ${weak}
+
+PAST SESSIONS & AI REVIEWS:
+${pastReviewsText.slice(0, 1000)}
+
+Respond ONLY with this compact JSON schema (1-2 sentences per field, 2-3 bullet items per array):
+{
+  "summary": "Brief 1-2 sentence overview of the student's progress and trajectory.",
+  "improvingAreas": ["Concept or skill showing noticeable improvement #1", "Concept #2"],
+  "strugglingAreas": ["Persistent bottleneck or difficulty needing reinforcement #1", "Concept #2"],
+  "recommendedFocus": ["High-priority topic for upcoming sessions #1", "Topic #2"]
+}`;
+  }
+
+  return `You are an expert pedagogical analyst for TutorFlow, an online 1-on-1 tutoring platform.
+Analyze this student's past session reviews, tutor notes, and learning trajectory to produce a clear, actionable progress summary.
+
+STUDENT: ${studentName}
+SUBJECT & LEVEL: ${subject} (${currentLevel})
+INITIAL LEARNING GOALS: ${goals}
+TARGETED WEAK AREAS: ${weak}
+
+CHRONOLOGICAL PAST SESSION AI REVIEWS & LESSON DATA:
+${pastReviewsText.slice(0, 1800)}
+
+INSTRUCTIONS:
+Respond ONLY with a valid, compact JSON object strictly matching this schema. Be specific, encouraging, and pedagogically concrete:
+{
+  "summary": "Concise 2-3 sentence executive synthesis explaining what the student is improving at, general pace, and current mastery trajectory.",
+  "improvingAreas": [
+    "Specific concept or skill where the student has shown clear progress or breakthrough #1",
+    "Specific concept #2"
+  ],
+  "strugglingAreas": [
+    "Specific concept, problem type, or persistent struggle where the student still requires focused practice #1",
+    "Specific concept #2"
+  ],
+  "recommendedFocus": [
+    "Actionable, high-impact recommendation for upcoming tutoring sessions #1",
+    "Actionable recommendation #2"
+  ]
+}`;
+}
+
+/**
+ * Generate a cumulative student progress summary using Gemini AI based on past AI reviews and sessions.
+ *
+ * @param {Object} params
+ * @returns {Promise<{ progressSummary: Object, modelUsed: string }>}
+ */
+export async function generateStudentProgressSummary(params) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey.trim() === '') {
+    const error = new Error('Gemini API Key is not configured on the server. Please set GEMINI_API_KEY in server environment variables.');
+    error.statusCode = 503;
+    error.code = 'GEMINI_KEY_MISSING';
+    throw error;
+  }
+
+  const { studentName = 'Student', subject = 'Tutoring', pastSessions = [] } = params;
+
+  // Format past session AI reviews into structured text block
+  let pastReviewsText = params.pastReviewsText || '';
+  if (!pastReviewsText && Array.isArray(pastSessions) && pastSessions.length > 0) {
+    pastReviewsText = pastSessions
+      .map((s, idx) => {
+        const dateStr = s.scheduledAt ? new Date(s.scheduledAt).toLocaleDateString() : `Session ${idx + 1}`;
+        const topic = s.topic || 'General Topic';
+        const review = s.aiReview;
+        if (review) {
+          const strengths = Array.isArray(review.studentStrengths) ? review.studentStrengths.join('; ') : 'None noted';
+          const improvements = Array.isArray(review.areasForImprovement) ? review.areasForImprovement.join('; ') : 'None noted';
+          const summary = review.summary || s.notes || 'Completed session.';
+          return `[${dateStr}] Topic: ${topic}\nSummary: ${summary}\nStrengths: ${strengths}\nAreas for Improvement: ${improvements}`;
+        }
+        return `[${dateStr}] Topic: ${topic}\nNotes: ${s.notes || 'No notes'}`;
+      })
+      .join('\n\n');
+  }
+
+  const promptParams = {
+    ...params,
+    pastReviewsText
+  };
+
+  const models = getSupportedModels();
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      const prompt = buildProgressPrompt(promptParams, false);
+      let rawText;
+      try {
+        rawText = await callGeminiApi(model, apiKey, prompt, 22000);
+      } catch (callErr) {
+        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503) {
+          lastError = callErr;
+          continue;
+        }
+        throw callErr;
+      }
+
+      let parsed;
+      try {
+        parsed = extractAndParseJson(rawText);
+      } catch (parseErr) {
+        console.warn(`[geminiService] Progress summary JSON parse failed on model ${model}: ${parseErr.message}. Retrying with compact prompt...`);
+        try {
+          const compactPrompt = buildProgressPrompt(promptParams, true);
+          const retryText = await callGeminiApi(model, apiKey, compactPrompt, 18000);
+          parsed = extractAndParseJson(retryText);
+        } catch (retryErr) {
+          console.warn(`[geminiService] Progress summary retry on model ${model} failed: ${retryErr.message}. Falling back to next model...`);
+          lastError = retryErr;
+          continue;
+        }
+      }
+
+      const summary = typeof parsed.summary === 'string' && parsed.summary.trim()
+        ? parsed.summary.trim()
+        : `${studentName} has demonstrated consistent progress in ${subject}, advancing through foundational principles and tackling targeted practice exercises.`;
+
+      const improvingAreas = Array.isArray(parsed.improvingAreas) && parsed.improvingAreas.length > 0
+        ? parsed.improvingAreas.map(String).filter(Boolean)
+        : [`Demonstrating stronger conceptual clarity and formula application in ${subject}.`];
+
+      const strugglingAreas = Array.isArray(parsed.strugglingAreas) && parsed.strugglingAreas.length > 0
+        ? parsed.strugglingAreas.map(String).filter(Boolean)
+        : [`Requires continued guided practice with complex multi-step problems.`];
+
+      const recommendedFocus = Array.isArray(parsed.recommendedFocus) && parsed.recommendedFocus.length > 0
+        ? parsed.recommendedFocus.map(String).filter(Boolean)
+        : [`Reinforce problem-solving speed and accuracy through spaced practice drills.`];
+
+      const structuredSummary = {
+        summary,
+        improvingAreas,
+        strugglingAreas,
+        recommendedFocus
+      };
+
+      return {
+        progressSummary: structuredSummary,
+        modelUsed: model
+      };
+    } catch (err) {
+      lastError = err;
+      if (err.status === 429) {
+        const rateLimitErr = new Error('Gemini AI API rate limit reached. Please wait a moment and click Retry.');
+        rateLimitErr.statusCode = 429;
+        rateLimitErr.code = 'RATE_LIMIT_EXCEEDED';
+        throw rateLimitErr;
+      }
+    }
+  }
+
+  const finalError = new Error(
+    lastError?.statusCode === 504
+      ? 'Gemini AI service timed out while synthesizing the progress summary. Please click Retry to generate the summary.'
+      : (lastError?.message || 'Gemini AI service was temporarily unable to generate the progress summary. Please try again.')
+  );
+  finalError.statusCode = lastError?.statusCode || 502;
+  finalError.code = 'AI_SERVICE_UNAVAILABLE';
+  throw finalError;
+}

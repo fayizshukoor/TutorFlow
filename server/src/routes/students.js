@@ -4,7 +4,9 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import Student from '../models/Student.js';
 import User from '../models/User.js';
+import Session from '../models/Session.js';
 import { authenticate, requireTutor } from '../middleware/auth.js';
+import { generateStudentProgressSummary } from '../services/geminiService.js';
 
 const router = express.Router();
 
@@ -373,4 +375,84 @@ router.put('/:id', authenticate, requireTutor, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/students/:id/progress-summary
+ * Tutor Only: Generate a cumulative AI Progress Summary synthesizing all past AI reviews
+ */
+router.post('/:id/progress-summary', authenticate, requireTutor, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid student ID format.'
+      });
+    }
+
+    // Security & Ownership Check: Verify student belongs to authenticated tutor
+    const student = await Student.findOne({
+      _id: id,
+      tutorId: req.user._id
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Student profile not found or access denied.'
+      });
+    }
+
+    // Query past completed or ai_reviewed sessions for this student
+    const pastSessions = await Session.find({
+      studentId: student._id,
+      tutorId: req.user._id,
+      status: { $in: ['completed', 'ai_reviewed'] }
+    }).sort({ scheduledAt: 1 });
+
+    // Filter to sessions that have an AI review
+    const aiReviewedSessions = pastSessions.filter(
+      (s) => s.aiReview && (s.aiReview.summary || (Array.isArray(s.aiReview.keyTopicsCovered) && s.aiReview.keyTopicsCovered.length > 0))
+    );
+
+    if (aiReviewedSessions.length === 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'At least one AI-reviewed session is required to generate a progress summary. Complete a session and generate an AI review first.'
+      });
+    }
+
+    // Call Gemini to synthesize cumulative progress summary
+    const { progressSummary, modelUsed } = await generateStudentProgressSummary({
+      studentName: student.name,
+      subject: student.subject,
+      currentLevel: student.currentLevel,
+      learningGoals: student.learningGoals,
+      weakAreas: student.weakAreas,
+      pastSessions: aiReviewedSessions
+    });
+
+    // Safely persist summary on student document without overwriting profile fields
+    student.progressSummary = progressSummary;
+    student.progressSummaryGeneratedAt = new Date();
+    student.progressSummaryModel = modelUsed;
+    await student.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Student progress summary generated successfully.',
+      progressSummary,
+      student
+    });
+  } catch (error) {
+    console.error('Error generating student progress summary:', error);
+    const status = error.statusCode || error.status || 500;
+    return res.status(status).json({
+      error: error.code || 'AI_GENERATION_FAILED',
+      message: error.message || 'Failed to generate student progress summary.'
+    });
+  }
+});
+
 export default router;
+

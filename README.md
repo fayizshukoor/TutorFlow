@@ -148,6 +148,7 @@ TutorFlow/
 | `GET` | `/api/students/:id` | Tutor Only | Retrieve single student profile (ownership verified) | `{"success":true,"student":{"name":"Sam Chen",...}}` |
 | `PUT` | `/api/students/:id` | Tutor Only | Update student profile (whitelisted fields) | `{"success":true,"message":"...","student":{...}}` |
 | `GET` | `/api/students/profile/me` | Student Only | Get student's own enrolled profile | `{"success":true,"student":{"subject":"AP Calculus BC",...}}` |
+| `POST` | `/api/students/:id/progress-summary` | Tutor Only | Generate multi-session Gemini AI progress trajectory summary | `{"success":true,"progressSummary":{...}}` |
 | `GET` | `/api/sessions` | Tutor Only | List all sessions owned by tutor (sorted by scheduled date) | `{"success":true,"count":2,"sessions":[...]}` |
 | `POST` | `/api/sessions` | Tutor Only | Schedule a 1-on-1 session with collision clash detection | `{"success":true,"message":"...","session":{...}}` |
 | `GET` | `/api/sessions/my-sessions` | Student Only | Get authenticated student's own sessions | `{"success":true,"count":2,"sessions":[...]}` |
@@ -194,6 +195,20 @@ TutorFlow incorporates Google Gemini AI across the tutoring lifecycle:
 ### 3. Persistent Homework Progress (`PATCH /api/sessions/:id/homework-progress`)
 - **When**: As students complete homework tasks.
 - **Rules**: Assigned student only, records `completedAt` timestamps, updates real-time progress bars and tutor read-only summary badges.
+
+### 4. Long-Term AI Progress Trajectory (`POST /api/students/:id/progress-summary`)
+- **When**: On-demand by tutors on the student profile page.
+- **Prompt Context**: Aggregates all completed and AI-reviewed sessions for the student, including topics covered, strengths, areas for improvement, and tutor notes across multiple sessions.
+- **Output Structure**:
+  ```json
+  {
+    "summary": "Concise trajectory overview analyzing longitudinal growth and persistent hurdles...",
+    "improvingAreas": ["Specific concepts showing solid mastery and upward trend"],
+    "strugglingAreas": ["Persistent gaps requiring reinforcement"],
+    "recommendedFocus": ["Targeted pedagogical next steps for future lessons"]
+  }
+  ```
+- **UI Integration**: Rendered on the Student Profile with interactive Generate/Regenerate buttons, a progress trajectory card, narrative summary box, and a 3-column analysis grid.
 
 ---
 

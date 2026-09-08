@@ -46,6 +46,32 @@ const studentSchema = new mongoose.Schema(
     weakAreas: {
       type: [String],
       default: []
+    },
+    progressSummary: {
+      summary: {
+        type: String,
+        default: ''
+      },
+      improvingAreas: {
+        type: [String],
+        default: []
+      },
+      strugglingAreas: {
+        type: [String],
+        default: []
+      },
+      recommendedFocus: {
+        type: [String],
+        default: []
+      }
+    },
+    progressSummaryGeneratedAt: {
+      type: Date,
+      default: null
+    },
+    progressSummaryModel: {
+      type: String,
+      default: ''
     }
   },
   {

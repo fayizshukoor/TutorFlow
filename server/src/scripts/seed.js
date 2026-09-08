@@ -90,7 +90,25 @@ export async function seedUsers() {
         subject: SEED_STUDENT_PROFILE.subject,
         currentLevel: SEED_STUDENT_PROFILE.currentLevel,
         learningGoals: SEED_STUDENT_PROFILE.learningGoals,
-        weakAreas: SEED_STUDENT_PROFILE.weakAreas
+        weakAreas: SEED_STUDENT_PROFILE.weakAreas,
+        progressSummary: {
+          summary: 'Sam has made steady progress in AP Calculus BC, transitioning smoothly through parametric slope derivations and arc length computations. Performance shows rapid growth on algebraic manipulation with continued reinforcement needed on polar area integration limits.',
+          improvingAreas: [
+            'Parametric first and second derivative computations (dy/dx and d²y/dx²)',
+            'Conversion between rectangular coordinates and polar curves',
+            'Applying standard power series formulas and nth-term tests'
+          ],
+          strugglingAreas: [
+            'Setting up correct theta integration bounds for overlapping polar curves and multi-petal areas',
+            'Applying integration by parts iteratively with trigonometric substitution'
+          ],
+          recommendedFocus: [
+            'Targeted drill on polar curve intersection points and area integrals (1/2 ∫ r² dθ)',
+            'Integration by parts involving tabular method and trigonometric reduction formulas'
+          ]
+        },
+        progressSummaryGeneratedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        progressSummaryModel: 'gemini-3.6-flash'
       },
       { upsert: true, new: true, runValidators: true }
     );
