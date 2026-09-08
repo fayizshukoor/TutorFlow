@@ -85,6 +85,14 @@ export const router = createBrowserRouter([
         )
       },
       {
+        path: 'student/sessions/:id',
+        element: (
+          <ProtectedRoute allowedRoles={['student']}>
+            <SessionWorkspace />
+          </ProtectedRoute>
+        )
+      },
+      {
         path: 'access-denied',
         element: <AccessDenied />
       },

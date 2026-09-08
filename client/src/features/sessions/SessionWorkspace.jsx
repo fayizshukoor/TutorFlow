@@ -16,12 +16,20 @@ import {
   AlertTriangle,
   RefreshCw,
   Check,
-  Save
+  Save,
+  CheckSquare,
+  Square,
+  ArrowRight,
+  GraduationCap
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { sessionApi } from '../../services/api';
 
 export default function SessionWorkspace() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const isTutor = user?.role === 'tutor';
+  const isStudent = user?.role === 'student';
 
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +41,12 @@ export default function SessionWorkspace() {
   const [statusActionLoading, setStatusActionLoading] = useState(false);
   const debounceTimerRef = useRef(null);
   const lastSavedNotesRef = useRef('');
+
+  // AI Review state
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [aiSuccessMessage, setAiSuccessMessage] = useState(null);
+  const [checkedTasks, setCheckedTasks] = useState({});
 
   const fetchSession = useCallback(async () => {
     setLoading(true);
@@ -61,7 +75,7 @@ export default function SessionWorkspace() {
   // Save notes helper
   const saveNotesToServer = useCallback(
     async (text) => {
-      if (text === lastSavedNotesRef.current) {
+      if (!isTutor || text === lastSavedNotesRef.current) {
         setSaveStatus('saved');
         return;
       }
@@ -79,11 +93,12 @@ export default function SessionWorkspace() {
         setSaveStatus('error');
       }
     },
-    [id]
+    [id, isTutor]
   );
 
   // Handle live typing with debounced autosave
   const handleNotesChange = (e) => {
+    if (!isTutor) return;
     const text = e.target.value;
     setNotesText(text);
 
@@ -113,6 +128,7 @@ export default function SessionWorkspace() {
 
   // Handle Lifecycle Status Transition
   const handleStatusChange = async (targetStatus) => {
+    if (!isTutor) return;
     setStatusActionLoading(true);
     try {
       // If transitioning away from in_progress, ensure any pending notes are flushed first
@@ -132,6 +148,35 @@ export default function SessionWorkspace() {
     } finally {
       setStatusActionLoading(false);
     }
+  };
+
+  // Handle Gemini AI Review Generation
+  const handleGenerateAiReview = async (regenerate = false) => {
+    if (!isTutor) return;
+    setAiGenerating(true);
+    setAiError(null);
+    setAiSuccessMessage(null);
+    try {
+      const { ok, data } = await sessionApi.generateAiReview(id, { regenerate });
+      if (!ok) {
+        throw new Error(data.message || data.error || 'Failed to generate AI review.');
+      }
+      setSession(data.session);
+      setAiSuccessMessage('Gemini AI review and homework generated successfully!');
+      setTimeout(() => setAiSuccessMessage(null), 5000);
+    } catch (err) {
+      console.error('Generate AI review error:', err);
+      setAiError(err.message || 'An error occurred while generating the AI review.');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const toggleHomeworkTask = (index) => {
+    setCheckedTasks((prev) => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
   };
 
   if (loading) {
@@ -155,8 +200,8 @@ export default function SessionWorkspace() {
           <h2 className="error-title">Session Not Found</h2>
           <p className="error-desc">{error || 'Session could not be located or you lack authorization.'}</p>
           <div className="error-actions">
-            <Link to="/tutor/sessions" className="btn-primary-auth">
-              <ArrowLeft size={16} /> Return to Sessions
+            <Link to={isStudent ? '/student' : '/tutor/sessions'} className="btn-primary-auth">
+              <ArrowLeft size={16} /> Return to {isStudent ? 'Dashboard' : 'Sessions'}
             </Link>
           </div>
         </div>
@@ -165,8 +210,11 @@ export default function SessionWorkspace() {
   }
 
   const student = session.studentId;
-  const isNotesEditable = session.status === 'in_progress';
+  const tutor = session.tutorId;
+  const isNotesEditable = isTutor && session.status === 'in_progress';
   const isCompleted = session.status === 'completed' || session.status === 'ai_reviewed';
+  const isAiReviewed = session.status === 'ai_reviewed';
+  const aiReview = session.aiReview;
 
   const formatLocalTime = (isoString) => {
     if (!isoString) return '';
@@ -185,12 +233,12 @@ export default function SessionWorkspace() {
     <div className="dashboard-container">
       {/* Top Nav */}
       <div className="profile-nav-bar">
-        <Link to="/tutor/sessions" className="btn-back">
+        <Link to={isStudent ? '/student' : '/tutor/sessions'} className="btn-back">
           <ArrowLeft size={16} />
-          <span>Back to Sessions</span>
+          <span>Back to {isStudent ? 'Student Dashboard' : 'Sessions'}</span>
         </Link>
 
-        {student?._id && (
+        {isTutor && student?._id && (
           <Link
             to={`/tutor/students/${student.id || student._id}`}
             className="btn-workspace-link"
@@ -198,6 +246,13 @@ export default function SessionWorkspace() {
             <User size={14} />
             <span>View Student Profile</span>
           </Link>
+        )}
+
+        {isStudent && (
+          <div className="student-view-badge" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <GraduationCap size={16} className="text-accent" />
+            <span>Student Lesson Workspace</span>
+          </div>
         )}
       </div>
 
@@ -222,7 +277,7 @@ export default function SessionWorkspace() {
             <h1 className="workspace-topic-title">{session.topic}</h1>
             <div className="workspace-meta-row">
               <span>
-                <strong>Student:</strong> {student?.name || 'Assigned Student'}
+                <strong>{isStudent ? 'Tutor:' : 'Student:'}</strong> {isStudent ? (tutor?.name || 'Alex Rivera') : (student?.name || 'Assigned Student')}
               </span>
               <span>•</span>
               <span>
@@ -238,47 +293,286 @@ export default function SessionWorkspace() {
           </div>
         </div>
 
-        {/* State Machine Action Controls */}
-        <div className="workspace-actions-group">
-          {session.status === 'scheduled' && (
+        {/* State Machine Action Controls for Tutor */}
+        {isTutor && (
+          <div className="workspace-actions-group">
+            {session.status === 'scheduled' && (
+              <button
+                onClick={() => handleStatusChange('in_progress')}
+                className="btn-primary-schedule"
+                disabled={statusActionLoading}
+              >
+                <Play size={16} />
+                <span>{statusActionLoading ? 'Starting...' : 'Start Live Session'}</span>
+              </button>
+            )}
+
+            {session.status === 'in_progress' && (
+              <button
+                onClick={() => handleStatusChange('completed')}
+                className="btn-primary-enroll"
+                style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
+                disabled={statusActionLoading}
+              >
+                <CheckCircle2 size={16} />
+                <span>{statusActionLoading ? 'Finalizing...' : 'Complete Session'}</span>
+              </button>
+            )}
+
+            {session.status === 'completed' && (
+              <button
+                onClick={() => handleGenerateAiReview(false)}
+                className="btn-ai-generate"
+                disabled={aiGenerating}
+              >
+                <Sparkles size={16} />
+                <span>{aiGenerating ? 'Generating Review...' : 'Generate AI Review'}</span>
+              </button>
+            )}
+
+            {isAiReviewed && (
+              <div className="badge-status-active" style={{ padding: '0.6rem 1.1rem', fontSize: '0.85rem' }}>
+                <CheckCircle2 size={15} /> AI Reviewed
+              </div>
+            )}
+          </div>
+        )}
+
+        {isStudent && (
+          <div className="workspace-actions-group">
+            <span className={`status-pill ${session.status}`} style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
+              <span className="status-dot" />
+              {session.status === 'ai_reviewed' ? 'AI Review Available' : session.status.replace('_', ' ')}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* AI Success / Error Alerts */}
+      {aiSuccessMessage && (
+        <div className="form-alert" style={{ background: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)', color: '#6EE7B7', marginBottom: '1.5rem' }}>
+          <CheckCircle2 size={16} />
+          <span>{aiSuccessMessage}</span>
+        </div>
+      )}
+
+      {aiError && (
+        <div className="form-alert error" style={{ marginBottom: '1.5rem' }}>
+          <AlertTriangle size={16} />
+          <span>{aiError}</span>
+          {isTutor && (
             <button
-              onClick={() => handleStatusChange('in_progress')}
-              className="btn-primary-schedule"
-              disabled={statusActionLoading}
+              onClick={() => handleGenerateAiReview(session.status === 'ai_reviewed')}
+              className="btn-secondary"
+              style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', marginLeft: 'auto' }}
             >
-              <Play size={16} />
-              <span>{statusActionLoading ? 'Starting...' : 'Start Live Session'}</span>
+              Retry
             </button>
           )}
+        </div>
+      )}
 
-          {session.status === 'in_progress' && (
-            <button
-              onClick={() => handleStatusChange('completed')}
-              className="btn-primary-enroll"
-              style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
-              disabled={statusActionLoading}
-            >
-              <CheckCircle2 size={16} />
-              <span>{statusActionLoading ? 'Finalizing...' : 'Complete Session'}</span>
-            </button>
+      {/* AI Generating In-Progress State */}
+      {aiGenerating && (
+        <div className="ai-generating-container" style={{ marginBottom: '1.75rem' }}>
+          <div className="spinner-large" />
+          <p className="ai-generating-text">Synthesizing Session with Gemini AI...</p>
+          <p className="ai-generating-hint">
+            Analyzing session topic, whiteboard notes, and student learning goals to generate structured feedback and custom homework.
+          </p>
+        </div>
+      )}
+
+      {/* Milestone 5: Gemini AI Review & Homework Section */}
+      {(aiReview || session.aiSummary) && (
+        <div className="ai-review-card">
+          {/* Header */}
+          <div className="ai-review-header">
+            <div className="ai-header-left">
+              <div className="ai-sparkle-icon-wrap">
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <h3 className="ai-header-title">Gemini AI Lesson Review & Homework</h3>
+                <p className="ai-header-subtitle">
+                  AI-synthesized pedagogical analysis and actionable student follow-up
+                </p>
+              </div>
+            </div>
+
+            <div className="ai-meta-pills">
+              <span className="ai-model-tag">
+                <Sparkles size={12} /> {aiReview?.modelUsed || 'Gemini Flash'}
+              </span>
+              {aiReview?.generatedAt && (
+                <span className="form-hint" style={{ fontSize: '0.75rem' }}>
+                  Generated {new Date(aiReview.generatedAt).toLocaleDateString()}
+                </span>
+              )}
+              {isTutor && (
+                <button
+                  onClick={() => handleGenerateAiReview(true)}
+                  className="btn-ai-regenerate"
+                  disabled={aiGenerating}
+                  title="Regenerate with Gemini AI"
+                >
+                  <RefreshCw size={13} className={aiGenerating ? 'spin' : ''} />
+                  <span>Regenerate</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Executive Summary */}
+          {aiReview?.summary && (
+            <div className="ai-summary-box">
+              <div className="ai-summary-label">
+                <FileText size={13} /> Executive Summary
+              </div>
+              <p style={{ margin: 0, color: '#F1F5F9' }}>{aiReview.summary}</p>
+
+              {aiReview.keyTopicsCovered?.length > 0 && (
+                <div className="ai-topics-row">
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600 }}>Covered:</span>
+                  {aiReview.keyTopicsCovered.map((topicItem, idx) => (
+                    <span key={idx} className="ai-topic-pill">
+                      <BookOpen size={11} className="text-accent" /> {topicItem}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
-          {isCompleted && (
-            <div className="badge-status-active" style={{ padding: '0.6rem 1.1rem', fontSize: '0.85rem' }}>
-              <CheckCircle2 size={15} /> Session Finalized (Read-Only)
+          {/* 2-Column Strengths vs Improvements Grid */}
+          <div className="ai-grid-2col">
+            {/* Student Strengths */}
+            <div className="ai-pedagogy-col">
+              <h4 className="ai-col-heading" style={{ color: '#34D399' }}>
+                <CheckCircle2 size={16} />
+                <span>Demonstrated Strengths ({aiReview?.studentStrengths?.length || 0})</span>
+              </h4>
+              <div className="ai-bullet-list">
+                {aiReview?.studentStrengths?.length > 0 ? (
+                  aiReview.studentStrengths.map((str, idx) => (
+                    <div key={idx} className="ai-bullet-item strength">
+                      <div className="ai-bullet-dot strength">
+                        <Check size={11} />
+                      </div>
+                      <span>{str}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="empty-subtext">No specific strengths recorded.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Areas for Improvement */}
+            <div className="ai-pedagogy-col">
+              <h4 className="ai-col-heading" style={{ color: '#FBBF24' }}>
+                <AlertTriangle size={16} />
+                <span>Areas Needing Practice ({aiReview?.areasForImprovement?.length || 0})</span>
+              </h4>
+              <div className="ai-bullet-list">
+                {aiReview?.areasForImprovement?.length > 0 ? (
+                  aiReview.areasForImprovement.map((area, idx) => (
+                    <div key={idx} className="ai-bullet-item weakness">
+                      <div className="ai-bullet-dot weakness">
+                        !
+                      </div>
+                      <span>{area}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="empty-subtext">No specific improvement areas flagged.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Recommended Next Steps */}
+          {aiReview?.recommendedNextSteps?.length > 0 && (
+            <div className="ai-pedagogy-col" style={{ background: 'rgba(99, 102, 241, 0.05)', borderColor: 'rgba(99, 102, 241, 0.25)' }}>
+              <h4 className="ai-col-heading" style={{ color: '#818CF8' }}>
+                <ArrowRight size={16} />
+                <span>Recommended Next Steps & Action Items</span>
+              </h4>
+              <div className="ai-bullet-list">
+                {aiReview.recommendedNextSteps.map((step, idx) => (
+                  <div key={idx} className="ai-bullet-item nextstep">
+                    <div className="ai-bullet-dot nextstep">
+                      <Sparkles size={11} />
+                    </div>
+                    <span>{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Homework Assignment Card */}
+          {aiReview?.homework && (
+            <div className="homework-card">
+              <div className="homework-header">
+                <div className="homework-title-wrap">
+                  <span className="homework-badge">
+                    <BookOpen size={12} /> Homework Assignment
+                  </span>
+                  <h4 className="homework-title">{aiReview.homework.title}</h4>
+                </div>
+                <span className="form-hint" style={{ fontSize: '0.8rem' }}>
+                  {isStudent ? 'Track your practice tasks below' : 'Assigned to student'}
+                </span>
+              </div>
+
+              {aiReview.homework.description && (
+                <p className="homework-desc">{aiReview.homework.description}</p>
+              )}
+
+              {aiReview.homework.tasks?.length > 0 && (
+                <div className="homework-tasks-list">
+                  {aiReview.homework.tasks.map((task, idx) => {
+                    const isChecked = Boolean(checkedTasks[idx]);
+                    return (
+                      <div
+                        key={idx}
+                        className={`homework-task-row ${isChecked ? 'checked-task' : ''}`}
+                        onClick={() => toggleHomeworkTask(idx)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className={`homework-checkbox ${isChecked ? 'checked' : ''}`}>
+                          <Check size={12} />
+                        </div>
+                        <span style={{ flex: 1 }}>{task}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fallback aiSummary string if aiReview object is not formatted */}
+          {!aiReview && session.aiSummary && (
+            <div className="ai-summary-box">
+              <div className="ai-summary-label">
+                <Sparkles size={13} /> AI Summary & Notes
+              </div>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{session.aiSummary}</div>
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* 2-Column Workspace Grid */}
-      <div className="workspace-grid">
+      {/* 2-Column Workspace Grid: Notes & Reference Sidebar */}
+      <div className="workspace-grid" style={{ marginTop: '2rem' }}>
         {/* Left Column: Live Notes Editor */}
         <div className="notes-card">
           <div className="notes-header-bar">
             <div className="notes-title-group">
               <FileText size={18} className="meta-icon-accent" />
-              <h3 className="notes-title">Session Live Notes</h3>
+              <h3 className="notes-title">Tutor Session Notes</h3>
             </div>
 
             {/* Autosave Indicator */}
@@ -311,7 +605,7 @@ export default function SessionWorkspace() {
 
               {isCompleted && (
                 <span className="autosave-badge locked">
-                  <Lock size={12} /> Read-only notes
+                  <Lock size={12} /> Finalized notes
                 </span>
               )}
             </div>
@@ -322,7 +616,9 @@ export default function SessionWorkspace() {
             <div className="notes-scheduled-banner">
               <Clock size={16} />
               <span>
-                Notes can only be edited while a session is <strong>in progress</strong>. Click <strong>Start Live Session</strong> above when you are ready to begin.
+                {isTutor
+                  ? <>Notes can only be edited while a session is <strong>in progress</strong>. Click <strong>Start Live Session</strong> above when you are ready.</>
+                  : <>Lesson notes will be recorded by your tutor once the session begins.</>}
               </span>
             </div>
           )}
@@ -331,7 +627,7 @@ export default function SessionWorkspace() {
             <div className="notes-locked-banner">
               <Lock size={16} />
               <span>
-                This session has been completed. Notes are now finalized and permanently stored for student review.
+                This session has been completed. Notes are permanently saved for student review and AI review generation.
               </span>
             </div>
           )}
@@ -342,7 +638,7 @@ export default function SessionWorkspace() {
             placeholder={
               isNotesEditable
                 ? 'Type live notes during the session... Autosave will save your changes continuously.'
-                : 'No notes were recorded for this session.'
+                : 'No live notes were recorded for this session.'
             }
             value={notesText}
             onChange={handleNotesChange}
@@ -373,7 +669,9 @@ export default function SessionWorkspace() {
                 <Target size={16} />
               </div>
               <div>
-                <h4 className="card-title" style={{ fontSize: '1rem' }}>Student Objectives</h4>
+                <h4 className="card-title" style={{ fontSize: '1rem' }}>
+                  {isStudent ? 'My Enrolled Objectives' : 'Student Objectives'}
+                </h4>
                 <p className="card-subtitle">{student?.name || 'Student'}</p>
               </div>
             </div>

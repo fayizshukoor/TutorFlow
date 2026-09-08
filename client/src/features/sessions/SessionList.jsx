@@ -379,9 +379,15 @@ export default function SessionList() {
                       </button>
                     )}
 
-                    {(session.status === 'completed' || session.status === 'ai_reviewed') && (
+                    {session.status === 'ai_reviewed' && (
+                      <span className="badge-status-active" style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'rgba(168, 85, 247, 0.15)', borderColor: 'rgba(168, 85, 247, 0.35)', color: '#D8B4FE' }}>
+                        <Sparkles size={12} /> AI Reviewed
+                      </span>
+                    )}
+
+                    {session.status === 'completed' && (
                       <span className="badge-status-active" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-                        <CheckCircle2 size={12} /> Finalized
+                        <CheckCircle2 size={12} /> Completed
                       </span>
                     )}
                   </div>

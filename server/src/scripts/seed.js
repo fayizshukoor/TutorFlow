@@ -121,7 +121,7 @@ export async function seedUsers() {
     );
     console.log(`✅ Upcoming session seeded: ${upcomingSession.topic} (${upcomingSession.status}) on ${upcomingSession.scheduledAt.toISOString()}`);
 
-    // Seed/Upsert Completed Session
+    // Seed/Upsert Completed Session (Ready for live AI generation)
     let completedSession = await Session.findOneAndUpdate(
       {
         tutorId: tutor._id,
@@ -141,6 +141,60 @@ export async function seedUsers() {
     );
     console.log(`✅ Completed session seeded: ${completedSession.topic} (${completedSession.status}) with finalized notes`);
 
+    // Seed/Upsert Static AI-Reviewed Session (Milestone 5 demonstration)
+    const reviewedScheduledAt = new Date(now - 3 * 24 * 60 * 60 * 1000); // 3 days ago
+    let aiReviewedSession = await Session.findOneAndUpdate(
+      {
+        tutorId: tutor._id,
+        studentId: studentProfile._id,
+        topic: 'Calculus BC: Parametric Equations & Polar Coordinates'
+      },
+      {
+        tutorId: tutor._id,
+        studentId: studentProfile._id,
+        topic: 'Calculus BC: Parametric Equations & Polar Coordinates',
+        scheduledAt: reviewedScheduledAt,
+        durationMinutes: 60,
+        status: 'ai_reviewed',
+        notes: 'Worked through parametric tangent slopes and arc length formulas. Sam converted Cartesian to polar curves smoothly, but had difficulty setting up area integrals inside polar petals.',
+        aiReview: {
+          summary: 'Sam demonstrated strong algebraic foundations with parametric dy/dx differentiation and arc length formulas. Target practice is needed on finding intersection angles and setting up polar petal area integrals.',
+          keyTopicsCovered: [
+            'Parametric first and second derivatives',
+            'Arc length of parametric curves',
+            'Polar coordinate conversion and petal area setup'
+          ],
+          studentStrengths: [
+            'Quick computation of parametric first derivatives dy/dt and dx/dt',
+            'High accuracy when converting polar equations into rectangular form'
+          ],
+          areasForImprovement: [
+            'Determining correct theta integration limits for overlapping polar curves',
+            'Careful handling of trigonometric identities inside polar area integrals (1/2 integral r^2 dtheta)'
+          ],
+          recommendedNextSteps: [
+            'Complete assigned 4-question polar area drill before next lesson',
+            'Review double-angle formulas for sin^2(theta) and cos^2(theta) antiderivatives'
+          ],
+          homework: {
+            title: 'AP Calculus BC: Polar Area & Arc Length Drill',
+            description: '4 targeted problems focusing on polar petal boundaries and parametric velocity vectors (~40 mins)',
+            tasks: [
+              'Sketch and calculate the area enclosed by one petal of r = 3*cos(2*theta)',
+              'Find the points of horizontal and vertical tangency for x(t) = t^2 - 4, y(t) = t^3 - 3t',
+              'Set up and evaluate the arc length integral for x = cos^3(t), y = sin^3(t) on [0, pi/2]',
+              'Self-check solutions against the AP scoring rubric and note any integration difficulties'
+            ]
+          },
+          generatedAt: new Date(now - 3 * 24 * 60 * 60 * 1000),
+          modelUsed: 'gemini-3.6-flash'
+        },
+        aiSummary: 'Sam demonstrated strong algebraic foundations with parametric differentiation. Target practice is needed on polar petal area integrals.'
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+    console.log(`✅ Static AI-Reviewed session seeded: ${aiReviewedSession.topic} (${aiReviewedSession.status})`);
+
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('====================================================');
     console.log('Test Accounts Summary:');
@@ -151,11 +205,12 @@ export async function seedUsers() {
     console.log(`🎯 Goals:   ${studentProfile.learningGoals.join(', ')}`);
     console.log(`⚠️ Weak:    ${studentProfile.weakAreas.join(', ')}`);
     console.log('Seeded Sessions:');
-    console.log(`📅 Upcoming:  ${upcomingSession.topic} (${upcomingSession.scheduledAt.toLocaleString()})`);
-    console.log(`🏁 Completed: ${completedSession.topic} (Notes finalized)`);
+    console.log(`📅 Upcoming:     ${upcomingSession.topic} (${upcomingSession.scheduledAt.toLocaleString()})`);
+    console.log(`🏁 Completed:    ${completedSession.topic} (Ready for AI generation)`);
+    console.log(`✨ AI-Reviewed:  ${aiReviewedSession.topic} (Static Gemini Review)`);
     console.log('====================================================\n');
 
-    return { tutor, studentUser, studentProfile, upcomingSession, completedSession };
+    return { tutor, studentUser, studentProfile, upcomingSession, completedSession, aiReviewedSession };
   } catch (error) {
     console.error('❌ Error during seeding:', error.message);
     throw error;

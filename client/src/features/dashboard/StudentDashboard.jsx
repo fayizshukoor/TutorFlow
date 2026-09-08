@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   RefreshCw,
   FileText,
+  Sparkles,
   X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -242,18 +243,18 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
 
                   <div className="session-card-actions">
                     <span className="form-hint">
-                      {session.status === 'in_progress' ? '⚡ Session in progress' : 'Read-only access'}
+                      {session.status === 'ai_reviewed' ? '✨ AI Review & Homework Ready' : session.status === 'in_progress' ? '⚡ Live session in progress' : 'Read-only access'}
                     </span>
-                    {session.notes && (
-                      <button
-                        onClick={() => setSelectedNotesSession(session)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Link
+                        to={`/student/sessions/${sid}`}
                         className="btn-view-profile"
-                        style={{ padding: '0.35rem 0.75rem' }}
+                        style={{ padding: '0.35rem 0.75rem', background: session.status === 'ai_reviewed' ? 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.2))' : undefined }}
                       >
-                        <FileText size={13} />
-                        <span>View Full Notes</span>
-                      </button>
-                    )}
+                        {session.status === 'ai_reviewed' ? <Sparkles size={13} className="text-accent" /> : <FileText size={13} />}
+                        <span>{session.status === 'ai_reviewed' ? 'View AI Review & Homework' : 'Open Workspace'}</span>
+                      </Link>
+                    </div>
                   </div>
                 </div>
               );

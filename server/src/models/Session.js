@@ -54,6 +54,10 @@ const sessionSchema = new mongoose.Schema(
       type: String,
       default: null,
       trim: true
+    },
+    aiReview: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
     }
   },
   {

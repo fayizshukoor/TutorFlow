@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Session from '../models/Session.js';
 import Student from '../models/Student.js';
 import { authenticate, requireTutor, requireStudent } from '../middleware/auth.js';
+import { generateSessionReview } from '../services/geminiService.js';
 
 const router = express.Router();
 
@@ -442,6 +443,89 @@ router.patch('/:id/notes', authenticate, requireTutor, async (req, res) => {
     return res.status(500).json({
       error: 'Internal Server Error',
       message: error.message || 'Failed to save notes.'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/sessions/:id/ai-review
+ * @desc    Generate Gemini-powered lesson summary and homework assignment
+ * @access  Private (Tutor Only)
+ * @allowed Only sessions with status 'completed' (or 'ai_reviewed' with regenerate flag)
+ */
+router.post('/:id/ai-review', authenticate, requireTutor, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { regenerate } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invalid session ID format.'
+      });
+    }
+
+    // Find session belonging to the authenticated tutor
+    const session = await Session.findOne({
+      _id: id,
+      tutorId: req.user._id
+    }).populate('studentId', 'name email subject currentLevel learningGoals weakAreas');
+
+    if (!session) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Session not found or does not belong to your tutor account.'
+      });
+    }
+
+    // Status validation rules
+    if (session.status === 'scheduled' || session.status === 'in_progress') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `AI Review can only be generated for completed sessions. Current session status is '${session.status}'.`
+      });
+    }
+
+    if (session.status === 'ai_reviewed' && !regenerate) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'This session has already been reviewed by AI. Provide { regenerate: true } to regenerate.'
+      });
+    }
+
+    const student = session.studentId || {};
+
+    // Call Gemini AI service
+    const { aiReview, aiSummaryText, modelUsed } = await generateSessionReview({
+      topic: session.topic,
+      notes: session.notes,
+      studentName: student.name || 'Student',
+      subject: student.subject || 'Tutoring Subject',
+      currentLevel: student.currentLevel || 'General',
+      learningGoals: student.learningGoals || [],
+      weakAreas: student.weakAreas || [],
+      durationMinutes: session.durationMinutes || 60
+    });
+
+    // Update session state
+    session.aiReview = aiReview;
+    session.aiSummary = aiSummaryText;
+    session.status = 'ai_reviewed';
+
+    await session.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Gemini AI review generated successfully.',
+      modelUsed,
+      session
+    });
+  } catch (error) {
+    console.error('Generate AI review error:', error);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      error: error.code || 'AI Service Error',
+      message: error.message || 'Failed to generate AI review. Please check server Gemini configuration.'
     });
   }
 });

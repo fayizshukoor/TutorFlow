@@ -179,6 +179,15 @@ export const sessionApi = {
     });
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
+  },
+
+  generateAiReview: async (id, { regenerate = false } = {}) => {
+    const res = await apiRequest(`/sessions/${id}/ai-review`, {
+      method: 'POST',
+      body: { regenerate }
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
   }
 };
 

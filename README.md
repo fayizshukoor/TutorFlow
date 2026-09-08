@@ -252,5 +252,19 @@ TutorFlow/
 2. ✅ **Milestone 2: JWT Authentication & Role-Based Access**: User Mongoose model, bcryptjs hashing, JWT bearer tokens, role middleware (`tutor` vs `student`), idempotent seeding, login page, role dashboards, and 403 access denial guards.
 3. ✅ **Milestone 3: Student Management & Profiles**: Student Mongoose model with `userId` and `tutorId` relations, tutor-only CRUD endpoints with server-side ownership gating, seeded profile, interactive student roster with search & stats, creation modal with dynamic tag editors, and student profile view/edit mode.
 4. ✅ **Milestone 4: Session Lifecycle State Machine**: Session Mongoose model, tutor scheduling with double-booking collision prevention, strict server-side state transitions (`scheduled` ➔ `in_progress` ➔ `completed`), live notes editor with debounced autosaving and read-only lockdown on completion, student session timeline and notes viewer.
-5. ⏳ **Milestone 5: Live Notes & Gemini AI Assistant**: Debounced autosave notes, AI pre-session lesson plans, and post-session homework reviews.
+5. ✅ **Milestone 5: Gemini-Powered Lesson Summaries & Homework**: Secure server-side Gemini integration (`gemini-3.6-flash`), structured post-session AI reviews (`POST /api/sessions/:id/ai-review`), automated synthesis of executive summaries, student strengths, areas for improvement, next steps, and personalized homework assignments with interactive task checklists.
 6. ⏳ **Milestone 6: Deployments**: Vercel (Frontend) & Render (Backend).
+
+---
+
+## 🤖 Gemini AI Configuration (`server/.env`)
+
+The AI review service requires `GEMINI_API_KEY` configured strictly on the backend (and in Render environment variables):
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+# Optional custom model override (defaults to gemini-3.6-flash):
+GEMINI_MODEL=gemini-3.6-flash
+```
+
+> 🔒 **Security Notice:** The Gemini API Key is kept strictly server-side. No client-side code touches or logs the Google AI key.
