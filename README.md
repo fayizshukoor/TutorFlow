@@ -110,6 +110,79 @@ TutorFlow/
 
 ---
 
+## 🗄️ Database Structure and Relationships
+
+TutorFlow uses MongoDB with Mongoose to model relationships across three primary entities: **`User`**, **`Student`**, and **`Session`**.
+
+```text
+┌────────────────────────┐                   ┌───────────────────────────────────┐
+│         User           │ 1 (tutorId)       │              Student              │
+│ ────────────────────── │ ────────────────> │ ───────────────────────────────── │
+│ _id: ObjectId          │                   │ _id: ObjectId                     │
+│ name: String           │                   │ userId: ObjectId (Ref: User, 1:1) │
+│ email: String (Unique) │ 1 (userId)        │ tutorId: ObjectId (Ref: User, M:1)│
+│ passwordHash: String   │ ────────────────> │ name, email, subject, currentLevel│
+│ role: 'tutor'|'student'│                   │ learningGoals: [String]           │
+│ tutorId: ObjectId?     │                   │ weakAreas: [String]               │
+└────────────────────────┘                   │ progressSummary: Object           │
+            │                                └───────────────────────────────────┘
+            │ 1 (tutorId)                                      │ 1 (studentId)
+            │                                                  │
+            ▼                                                  ▼
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                    Session                                     │
+│ ────────────────────────────────────────────────────────────────────────────── │
+│ _id: ObjectId                                                                  │
+│ tutorId: ObjectId (Ref: User, Indexed)                                         │
+│ studentId: ObjectId (Ref: Student, Indexed)                                    │
+│ scheduledAt: Date (Indexed)                                                    │
+│ durationMinutes: Number (15 - 240 mins, default: 60)                           │
+│ topic: String                                                                  │
+│ status: 'scheduled' | 'in_progress' | 'completed' | 'ai_reviewed'             │
+│ notes: String (Autosaved live markdown/text notes)                             │
+│ aiPlan: { learningObjectives, lessonOutline [4], practiceQuestions [3], ... }  │
+│ aiReview: { summary, keyTopicsCovered, studentStrengths, areasForImprovement,  │
+│             recommendedNextSteps, homework: { title, description, tasks } }    │
+│ homeworkProgress: [ { taskIndex: Number, completed: Boolean, completedAt } ]  │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. `User` Model (`server/src/models/User.js`)
+Handles authentication, identity, and role assignment:
+- **`_id`**: Unique MongoDB `ObjectId` representing the authenticated user.
+- **`name`**: Full name of the user.
+- **`email`**: Normalized lowercase email (`unique: true`, indexed).
+- **`passwordHash`**: 60-character bcrypt hash (`saltRounds: 10`).
+- **`role`**: Role enum (`'tutor'` or `'student'`).
+- **`tutorId`**: Self-referencing `ObjectId` pointing to the user's assigned tutor when `role === 'student'`.
+
+### 2. `Student` Model (`server/src/models/Student.js`)
+Stores the rich academic profile and long-term learning trajectory:
+- **`_id`**: Unique MongoDB `ObjectId` representing the student academic profile.
+- **`userId`** (`Ref: User`, `unique: true`): 1-to-1 foreign reference linking the academic profile to the student's authentication identity.
+- **`tutorId`** (`Ref: User`, `index: true`): Many-to-1 foreign reference linking the student profile to the owning tutor for strict multi-tenant data isolation.
+- **`subject`**: Focus subject (e.g. `"AP Calculus BC"`).
+- **`currentLevel`**: Current academic grade or level (e.g. `"Grade 12 / Advanced"`).
+- **`learningGoals`**: Array of target conceptual and exam milestones.
+- **`weakAreas`**: Array of diagnostic hurdle topics flagged for targeted practice.
+- **`progressSummary`**: Embedded subdocument containing cumulative AI trajectory analysis (`summary`, `improvingAreas`, `strugglingAreas`, `recommendedFocus`).
+
+### 3. `Session` Model (`server/src/models/Session.js`)
+Represents 1-on-1 scheduled tutoring sessions with full lifecycle tracking:
+- **`_id`**: Unique MongoDB `ObjectId` for the session.
+- **`tutorId`** (`Ref: User`, `index: true`): References the tutor who owns and conducts the session.
+- **`studentId`** (`Ref: Student`, `index: true`): References the student's academic profile.
+- **`scheduledAt`**: Session start timestamp (used for double-booking collision prevention and chronological sorting).
+- **`durationMinutes`**: Session duration (default: 60 minutes).
+- **`topic`**: Target concept or chapter.
+- **`status`**: State machine indicator (`'scheduled'` ➔ `'in_progress'` ➔ `'completed'` ➔ `'ai_reviewed'`).
+- **`notes`**: Autosaved text notes updated in real-time by the tutor during the session.
+- **`aiPlan`**: Pre-session structured lesson plan containing learning objectives, exactly 4 outline steps, and 3 practice problems.
+- **`aiReview`**: Post-session structured summary, covered concepts, strengths, areas for improvement, and homework tasks.
+- **`homeworkProgress`**: Array of database-persisted completion statuses and ISO timestamps for homework tasks.
+
+---
+
 ## 🔒 Security Architecture & Ownership Enforcement
 
 1. **Authentication (JWT & Bcrypt)**:
@@ -209,6 +282,196 @@ TutorFlow incorporates Google Gemini AI across the tutoring lifecycle:
   }
   ```
 - **UI Integration**: Rendered on the Student Profile with interactive Generate/Regenerate buttons, a progress trajectory card, narrative summary box, and a 3-column analysis grid.
+
+---
+
+## 🧠 AI Prompt Design
+
+TutorFlow leverages structured prompt engineering in [`server/src/services/geminiService.js`](file:///home/user/Desktop/TutorFlow/server/src/services/geminiService.js) to guarantee deterministic, pedagogically sound, and machine-parseable JSON responses from Google Gemini.
+
+### 1. Pre-Session AI Lesson Planning Prompt (`buildPlanPrompt`)
+
+#### Actual Prompt Template:
+```text
+You are an expert pedagogical assistant for TutorFlow, an online 1-on-1 tutoring platform.
+Design a highly tailored pre-session study plan and 3 targeted practice questions for an upcoming tutoring session.
+
+STUDENT: ${studentName} | SUBJECT: ${subject} (${currentLevel})
+STUDENT LEARNING GOALS: ${goals}
+AREAS NEEDING REINFORCEMENT: ${weak}
+UPCOMING SESSION TOPIC: ${topic} (${durationMinutes} minutes)
+${historyContext}
+INSTRUCTIONS:
+Respond ONLY with a valid JSON object strictly matching this schema. Ensure EXACTLY 4 structured lesson outline steps and EXACTLY 3 practice questions:
+{
+  "learningObjectives": [
+    "Clear, measurable learning objective #1",
+    "Clear, measurable learning objective #2"
+  ],
+  "lessonOutline": [
+    "1. Warm-Up & Diagnostic Review: Assess foundational understanding and prerequisite concepts",
+    "2. Core Concept Walkthrough: Guided instruction on core theory, formulas, and representative examples",
+    "3. Scaffolded Practice: Student solves targeted problems with tutor guidance and misconception correction",
+    "4. Synthesis & Wrap-Up: Exit check problem and recap of key takeaways"
+  ],
+  "practiceQuestions": [
+    "Practice Question 1 (Foundational concept check)",
+    "Practice Question 2 (Standard application problem)",
+    "Practice Question 3 (Challenging synthesis or multi-step problem addressing weak areas)"
+  ]
+}
+```
+
+#### Compact Fallback Prompt (Used on parse retry):
+```text
+You are an expert tutor for TutorFlow.
+Create a compact pre-session plan for a ${durationMinutes}-min ${subject} (${currentLevel}) session with ${studentName}.
+Topic: ${topic}
+Weak Areas: ${weak}
+Goals: ${goals}
+${historyContext}
+Respond ONLY with this JSON schema. EXACTLY 4 outline items and EXACTLY 3 questions:
+{
+  "learningObjectives": ["Objective 1", "Objective 2"],
+  "lessonOutline": [
+    "1. Warm-up & diagnostic review (10m)",
+    "2. Guided core concept explanation (20m)",
+    "3. Practice problem solving (20m)",
+    "4. Wrap-up and synthesis (10m)"
+  ],
+  "practiceQuestions": [
+    "Question 1: Foundational practice",
+    "Question 2: Core concept exercise",
+    "Question 3: Application challenge"
+  ]
+}
+```
+
+#### Context & Rationale:
+- **Student Profile & Level (`subject`, `currentLevel`):** Ensures difficulty calibration matches the student's curriculum (e.g., AP Calculus BC requires formal proofs, whereas middle school algebra requires intuitive scaffolding).
+- **Learning Goals & Weak Areas (`goals`, `weak`):** Directs the lesson outline to prioritize diagnosed misconceptions and prioritize targeted drills.
+- **Current Topic & Duration (`topic`, `durationMinutes`):** Calibrates realistic pacing across the 4-step outline (Warm-up, Concept Walkthrough, Guided Practice, Synthesis).
+- **Previous Session Context (`pastSessionsSummary`):** Prevents duplicate coverage and builds directly upon concepts mastered in prior classes.
+
+---
+
+### 2. Post-Session AI Review & Homework Prompt (`buildPrompt`)
+
+#### Actual Prompt Template:
+```text
+You are an expert pedagogical assistant for TutorFlow, an online 1-on-1 tutoring platform.
+Analyze this completed tutoring session and produce a structured, high-value lesson review and homework assignment.
+
+STUDENT: ${studentName} | SUBJECT: ${subject} (${currentLevel})
+GOALS: ${goals}
+AREAS FOR PRACTICE: ${weak}
+SESSION TOPIC: ${topic} (${durationMinutes} mins)
+LIVE NOTES:
+${notesText}
+
+INSTRUCTIONS:
+Respond ONLY with a valid, compact JSON object strictly matching this schema. Keep descriptions concise to ensure fast generation:
+{
+  "summary": "Concise 2-sentence synthesis of concepts covered and student performance.",
+  "keyTopicsCovered": ["Key concept or problem type covered #1", "Key concept #2"],
+  "studentStrengths": ["Demonstrated competency or breakthrough #1", "Positive pedagogical observation #2"],
+  "areasForImprovement": ["Misconception or topic needing reinforcement #1", "Topic needing practice #2"],
+  "recommendedNextSteps": ["Action item before next lesson #1", "Focus topic for upcoming lesson #2"],
+  "homework": {
+    "title": "Clear assignment title",
+    "description": "Short explanation of purpose (~30-45 mins)",
+    "tasks": ["Actionable problem/drill #1", "Actionable problem/drill #2", "Self-check task #3"]
+  }
+}
+```
+
+#### Compact Fallback Prompt (Used on parse retry):
+```text
+You are a tutoring assistant for TutorFlow.
+Create a compact JSON review for a ${durationMinutes}-minute ${subject} (${currentLevel}) session with ${studentName}.
+Topic: ${topic}
+Notes: ${notesText}
+
+Respond ONLY with this compact JSON schema. Keep all strings short (1 sentence each):
+{
+  "summary": "Brief 1-2 sentence overview of what was covered.",
+  "keyTopicsCovered": ["Topic 1", "Topic 2"],
+  "studentStrengths": ["Strength 1", "Strength 2"],
+  "areasForImprovement": ["Focus area 1", "Focus area 2"],
+  "recommendedNextSteps": ["Next step 1", "Next step 2"],
+  "homework": {
+    "title": "Short Homework Title",
+    "description": "Short 1-sentence instruction.",
+    "tasks": ["Task 1", "Task 2", "Task 3"]
+  }
+}
+```
+
+#### Context & Rationale:
+- **Tutor Live Notes (`notesText`):** Provides ground-truth qualitative data on student performance, specific problem types attempted, and errors observed during class.
+- **Session Topic & Diagnostic Goals:** Grounds the review in specific concepts rather than generic summaries.
+- **Actionable Strengths & Weaknesses:** Segregates competencies from areas needing practice so both student and tutor have clarity on progress.
+- **Tailored Homework Generation:** Creates custom, bite-sized tasks (~30-45 min total) directly targeting areas flagged for improvement.
+
+---
+
+### 3. Multi-Session Student Progress Summary Prompt (`buildProgressPrompt`)
+
+#### Actual Prompt Template:
+```text
+You are an expert pedagogical analyst for TutorFlow, an online 1-on-1 tutoring platform.
+Analyze this student's past session reviews, tutor notes, and learning trajectory to produce a clear, actionable progress summary.
+
+STUDENT: ${studentName}
+SUBJECT & LEVEL: ${subject} (${currentLevel})
+INITIAL LEARNING GOALS: ${goals}
+TARGETED WEAK AREAS: ${weak}
+
+CHRONOLOGICAL PAST SESSION AI REVIEWS & LESSON DATA:
+${pastReviewsText.slice(0, 1800)}
+
+INSTRUCTIONS:
+Respond ONLY with a valid, compact JSON object strictly matching this schema. Be specific, encouraging, and pedagogically concrete:
+{
+  "summary": "Concise 2-3 sentence executive synthesis explaining what the student is improving at, general pace, and current mastery trajectory.",
+  "improvingAreas": [
+    "Specific concept or skill where the student has shown clear progress or breakthrough #1",
+    "Specific concept #2"
+  ],
+  "strugglingAreas": [
+    "Specific concept, problem type, or persistent struggle where the student still requires focused practice #1",
+    "Specific concept #2"
+  ],
+  "recommendedFocus": [
+    "Actionable, high-impact recommendation for upcoming tutoring sessions #1",
+    "Actionable recommendation #2"
+  ]
+}
+```
+
+#### Compact Fallback Prompt (Used on parse retry):
+```text
+You are a tutoring assistant for TutorFlow.
+Create a compact student progress summary for ${studentName} (${subject}, ${currentLevel}).
+Goals: ${goals}
+Weak Areas: ${weak}
+
+PAST SESSIONS & AI REVIEWS:
+${pastReviewsText.slice(0, 1000)}
+
+Respond ONLY with this compact JSON schema (1-2 sentences per field, 2-3 bullet items per array):
+{
+  "summary": "Brief 1-2 sentence overview of the student's progress and trajectory.",
+  "improvingAreas": ["Concept or skill showing noticeable improvement #1", "Concept #2"],
+  "strugglingAreas": ["Persistent bottleneck or difficulty needing reinforcement #1", "Concept #2"],
+  "recommendedFocus": ["High-priority topic for upcoming sessions #1", "Topic #2"]
+}
+```
+
+#### Context & Rationale:
+- **Chronological Multi-Session History (`pastReviewsText`):** Aggregates topics, tutor observations, strengths, and weaknesses across past lessons to discern longitudinal trends.
+- **Trajectory Comparison against Initial Goals:** Evaluates whether initial weak areas have transitioned into mastered concepts or remain ongoing hurdles.
+- **Pedagogical Prescriptions (`recommendedFocus`):** Advises the tutor on high-leverage topics for subsequent lesson planning.
 
 ---
 
