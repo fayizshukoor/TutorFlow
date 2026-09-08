@@ -330,3 +330,9 @@ GEMINI_MODEL=gemini-3.6-flash
 ```
 
 > 🔒 **Security Notice:** The Gemini API Key is kept strictly server-side. No client-side code touches or logs the Google AI key.
+
+## What I Would Build Next
+
+## What I Would Build Next
+
+With another day, I would add the ability for tutors to edit or cancel scheduled sessions. I would add email reminders so students do not miss upcoming sessions. I would improve the mobile layout and make the forms easier to use. I would add more validation and clearer error messages for invalid inputs. I would also add more automated tests for important tutor and student workflows.
