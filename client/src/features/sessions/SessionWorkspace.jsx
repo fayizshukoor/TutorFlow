@@ -46,7 +46,8 @@ export default function SessionWorkspace() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiSuccessMessage, setAiSuccessMessage] = useState(null);
-  const [checkedTasks, setCheckedTasks] = useState({});
+  const [savingTaskIdx, setSavingTaskIdx] = useState(null);
+  const [homeworkError, setHomeworkError] = useState(null);
 
   const fetchSession = useCallback(async () => {
     setLoading(true);
@@ -172,11 +173,40 @@ export default function SessionWorkspace() {
     }
   };
 
-  const toggleHomeworkTask = (index) => {
-    setCheckedTasks((prev) => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
+  // Handle student homework completion persistence
+  const toggleHomeworkTask = async (taskIndex) => {
+    if (!isStudent) return; // Prevent tutors from modifying
+    if (savingTaskIdx !== null) return; // Prevent concurrent modifications while saving
+    if (!session || session.status !== 'ai_reviewed') return;
+
+    const currentList = session.homeworkProgress || [];
+    const currentItem = currentList.find((p) => p.taskIndex === taskIndex);
+    const currentlyCompleted = Boolean(currentItem?.completed);
+    const newCompleted = !currentlyCompleted;
+
+    setSavingTaskIdx(taskIndex);
+    setHomeworkError(null);
+
+    try {
+      const { ok, data } = await sessionApi.updateHomeworkProgress(id, {
+        taskIndex,
+        completed: newCompleted
+      });
+
+      if (!ok) {
+        throw new Error(data.message || data.error || 'Failed to update homework task.');
+      }
+
+      setSession((prev) => ({
+        ...prev,
+        homeworkProgress: data.homeworkProgress || (data.session && data.session.homeworkProgress) || prev.homeworkProgress
+      }));
+    } catch (err) {
+      console.error('Update homework progress error:', err);
+      setHomeworkError(err.message || 'Failed to save homework task progress.');
+    } finally {
+      setSavingTaskIdx(null);
+    }
   };
 
   if (loading) {
@@ -223,6 +253,18 @@ export default function SessionWorkspace() {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatCompletedAt = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
@@ -525,30 +567,106 @@ export default function SessionWorkspace() {
                   </span>
                   <h4 className="homework-title">{aiReview.homework.title}</h4>
                 </div>
-                <span className="form-hint" style={{ fontSize: '0.8rem' }}>
-                  {isStudent ? 'Track your practice tasks below' : 'Assigned to student'}
-                </span>
+                <div className="homework-progress-badge-wrap">
+                  {(() => {
+                    const totalTasks = aiReview.homework.tasks?.length || 0;
+                    const completedTasks = (session.homeworkProgress || []).filter(
+                      (p) => p.completed && p.taskIndex < totalTasks
+                    ).length;
+                    return (
+                      <span className="homework-progress-pill">
+                        <CheckCircle2 size={13} className="text-accent" />
+                        <span>
+                          {isTutor
+                            ? `Student Progress: ${completedTasks} of ${totalTasks} tasks completed`
+                            : `${completedTasks} of ${totalTasks} tasks completed`}
+                        </span>
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
 
               {aiReview.homework.description && (
                 <p className="homework-desc">{aiReview.homework.description}</p>
               )}
 
+              {/* Visual Progress Bar */}
+              {aiReview.homework.tasks?.length > 0 && (
+                <div className="homework-progress-bar-container">
+                  {(() => {
+                    const total = aiReview.homework.tasks.length;
+                    const completedCount = (session.homeworkProgress || []).filter(
+                      (p) => p.completed && p.taskIndex < total
+                    ).length;
+                    const percent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+                    return (
+                      <div className="homework-progress-track">
+                        <div
+                          className="homework-progress-fill"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Homework Save Error Feedback */}
+              {homeworkError && (
+                <div className="form-alert error" style={{ margin: '0.25rem 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.85rem' }}>{homeworkError}</span>
+                </div>
+              )}
+
+              {/* Tasks List */}
               {aiReview.homework.tasks?.length > 0 && (
                 <div className="homework-tasks-list">
                   {aiReview.homework.tasks.map((task, idx) => {
-                    const isChecked = Boolean(checkedTasks[idx]);
+                    const progressItem = (session.homeworkProgress || []).find((p) => p.taskIndex === idx);
+                    const isChecked = Boolean(progressItem?.completed);
+                    const isSaving = savingTaskIdx === idx;
+
                     return (
                       <div
                         key={idx}
-                        className={`homework-task-row ${isChecked ? 'checked-task' : ''}`}
-                        onClick={() => toggleHomeworkTask(idx)}
-                        style={{ cursor: 'pointer' }}
+                        className={`homework-task-row ${isChecked ? 'checked-task' : ''} ${!isStudent ? 'readonly-task' : ''}`}
+                        onClick={() => {
+                          if (isStudent && !isSaving) {
+                            toggleHomeworkTask(idx);
+                          }
+                        }}
+                        style={{
+                          cursor: isStudent ? (isSaving ? 'wait' : 'pointer') : 'default'
+                        }}
+                        title={!isStudent ? 'Homework completion is tracked by the student (read-only for tutor)' : undefined}
                       >
-                        <div className={`homework-checkbox ${isChecked ? 'checked' : ''}`}>
-                          <Check size={12} />
+                        <div className={`homework-checkbox ${isChecked ? 'checked' : ''} ${!isStudent ? 'readonly' : ''}`}>
+                          {isSaving ? (
+                            <div className="spinner-sm" style={{ width: 10, height: 10, borderWidth: 1.5 }} />
+                          ) : (
+                            <Check size={12} />
+                          )}
                         </div>
-                        <span style={{ flex: 1 }}>{task}</span>
+                        <div className="homework-task-content" style={{ flex: 1 }}>
+                          <span className="homework-task-text">{task}</span>
+                          {isChecked && progressItem?.completedAt && (
+                            <span className="homework-task-timestamp">
+                              <CheckCircle2 size={11} className="text-accent" />
+                              {isTutor ? 'Completed by student on ' : 'Completed on '}
+                              {formatCompletedAt(progressItem.completedAt)}
+                            </span>
+                          )}
+                          {!isChecked && isTutor && (
+                            <span className="homework-task-pending">
+                              Pending completion
+                            </span>
+                          )}
+                        </div>
+                        {isStudent && isSaving && (
+                          <span className="homework-saving-badge">Saving...</span>
+                        )}
                       </div>
                     );
                   })}

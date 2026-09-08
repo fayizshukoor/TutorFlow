@@ -243,7 +243,13 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
 
                   <div className="session-card-actions">
                     <span className="form-hint">
-                      {session.status === 'ai_reviewed' ? '✨ AI Review & Homework Ready' : session.status === 'in_progress' ? '⚡ Live session in progress' : 'Read-only access'}
+                      {session.status === 'ai_reviewed' ? (
+                        session.aiReview?.homework?.tasks?.length > 0 ? (
+                          <span style={{ color: '#C084FC', fontWeight: 600 }}>
+                            📝 Homework: {(session.homeworkProgress || []).filter((p) => p.completed && p.taskIndex < session.aiReview.homework.tasks.length).length} of {session.aiReview.homework.tasks.length} completed
+                          </span>
+                        ) : '✨ AI Review & Homework Ready'
+                      ) : session.status === 'in_progress' ? '⚡ Live session in progress' : 'Read-only access'}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Link

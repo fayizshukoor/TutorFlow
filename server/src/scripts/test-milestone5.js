@@ -56,17 +56,20 @@ async function runMilestone5Tests() {
     const tutorToken = createAuthToken(tutorUser);
     const studentToken = createAuthToken(studentUser);
 
-    // 2. Fetch Sessions in different states
+    // 2. Fetch Sessions in different states for this student
     const scheduledSession = await Session.findOne({
       tutorId: tutorUser._id,
+      studentId: studentProfile._id,
       status: 'scheduled'
     });
     const completedSession = await Session.findOne({
       tutorId: tutorUser._id,
+      studentId: studentProfile._id,
       status: 'completed'
     });
     const aiReviewedSession = await Session.findOne({
       tutorId: tutorUser._id,
+      studentId: studentProfile._id,
       status: 'ai_reviewed'
     });
 
@@ -195,6 +198,196 @@ async function runMilestone5Tests() {
     assert(
       studentGetData.session?.aiReview?.homework?.tasks?.length > 0,
       'Student response contains homework assignment tasks'
+    );
+
+    // 8. Test Student Checking Homework Task (Persistent Progress)
+    console.log('\n--- Test 6: Student Check & Uncheck Homework Task ---');
+    const checkTaskRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 0, completed: true })
+    });
+    const checkTaskData = await checkTaskRes.json();
+    assert(
+      checkTaskRes.status === 200,
+      `Student checking taskIndex 0 succeeds with 200 OK (Actual: ${checkTaskRes.status})`
+    );
+    assert(
+      checkTaskData.homeworkProgress?.some((p) => p.taskIndex === 0 && p.completed === true && p.completedAt !== null),
+      'TaskIndex 0 marked completed with valid completedAt timestamp'
+    );
+
+    // Uncheck task
+    const uncheckTaskRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 0, completed: false })
+    });
+    const uncheckTaskData = await uncheckTaskRes.json();
+    assert(
+      uncheckTaskRes.status === 200,
+      `Student unchecking taskIndex 0 succeeds with 200 OK (Actual: ${uncheckTaskRes.status})`
+    );
+    assert(
+      uncheckTaskData.homeworkProgress?.some((p) => p.taskIndex === 0 && p.completed === false && p.completedAt === null),
+      'TaskIndex 0 marked incomplete with completedAt reset to null'
+    );
+
+    // Re-check task 0 and check task 1 for persistence verification
+    await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 0, completed: true })
+    });
+    await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 1, completed: true })
+    });
+
+    // 9. Test Persistence on Fresh GET
+    console.log('\n--- Test 7: Persistence on Fresh Session GET ---');
+    const freshGetRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}`, {
+      headers: {
+        Authorization: `Bearer ${studentToken}`
+      }
+    });
+    const freshGetData = await freshGetRes.json();
+    const completedIndices = freshGetData.session?.homeworkProgress
+      ?.filter((p) => p.completed)
+      ?.map((p) => p.taskIndex);
+    assert(
+      freshGetRes.status === 200 && completedIndices.includes(0) && completedIndices.includes(1),
+      `Fresh fetch reflects persisted progress (Tasks 0 and 1 completed: [${completedIndices.join(', ')}])`
+    );
+
+    // 10. Test Tutor Access & Modification Denial
+    console.log('\n--- Test 8: Tutor Read-Only Access & Mutation Block ---');
+    const tutorGetRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}`, {
+      headers: {
+        Authorization: `Bearer ${tutorToken}`
+      }
+    });
+    const tutorGetData = await tutorGetRes.json();
+    assert(
+      tutorGetRes.status === 200 && tutorGetData.session?.homeworkProgress?.length > 0,
+      'Tutor can view student homeworkProgress array'
+    );
+
+    const tutorMutateRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tutorToken}`
+      },
+      body: JSON.stringify({ taskIndex: 0, completed: false })
+    });
+    assert(
+      tutorMutateRes.status === 403,
+      `Tutor attempting to modify student homework is rejected with 403 Forbidden (Actual: ${tutorMutateRes.status})`
+    );
+
+    // 11. Test Unauthorized Student Security Block
+    console.log('\n--- Test 9: Unauthorized Student Security Guard ---');
+    let otherStudentUser = await User.findOne({ email: 'otherstudent_test@tutorflow.com' });
+    if (!otherStudentUser) {
+      otherStudentUser = await User.create({
+        name: 'Other Student Test',
+        email: 'otherstudent_test@tutorflow.com',
+        passwordHash: 'dummyhash',
+        role: 'student'
+      });
+      await Student.create({
+        userId: otherStudentUser._id,
+        tutorId: tutorUser._id,
+        name: 'Other Student Test',
+        email: 'otherstudent_test@tutorflow.com',
+        subject: 'Physics C',
+        currentLevel: 'Grade 11'
+      });
+    }
+    const otherStudentToken = createAuthToken(otherStudentUser);
+
+    const otherStudentPatchRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${otherStudentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 0, completed: true })
+    });
+    assert(
+      otherStudentPatchRes.status === 403,
+      `Unlinked student attempting to modify homework is rejected with 403 Forbidden (Actual: ${otherStudentPatchRes.status})`
+    );
+
+    const otherStudentGetRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}`, {
+      headers: {
+        Authorization: `Bearer ${otherStudentToken}`
+      }
+    });
+    assert(
+      otherStudentGetRes.status === 403,
+      `Unlinked student attempting to view session is rejected with 403 Forbidden (Actual: ${otherStudentGetRes.status})`
+    );
+
+    // Clean up temporary other student
+    await Student.deleteMany({ userId: otherStudentUser._id });
+    await User.deleteMany({ _id: otherStudentUser._id });
+
+    // 12. Test Non-AI-Reviewed Sessions Reject Homework Updates
+    console.log('\n--- Test 10: State Machine Gating for Homework Progress ---');
+    const scheduledHomeworkRes = await fetch(`${BASE_URL}/sessions/${scheduledSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 0, completed: true })
+    });
+    assert(
+      scheduledHomeworkRes.status === 400,
+      `Scheduled session rejects homework updates with 400 Bad Request (Actual: ${scheduledHomeworkRes.status})`
+    );
+
+    // 13. Test Boundary Validation on taskIndex
+    console.log('\n--- Test 11: Task Index Boundary Validation ---');
+    const outOfBoundsRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: 999, completed: true })
+    });
+    assert(
+      outOfBoundsRes.status === 400,
+      `Out-of-bounds taskIndex (999) rejected with 400 Bad Request (Actual: ${outOfBoundsRes.status})`
+    );
+
+    const negativeIndexRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/homework-progress`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${studentToken}`
+      },
+      body: JSON.stringify({ taskIndex: -1, completed: true })
+    });
+    assert(
+      negativeIndexRes.status === 400,
+      `Negative taskIndex (-1) rejected with 400 Bad Request (Actual: ${negativeIndexRes.status})`
     );
 
     console.log('\n====================================================');

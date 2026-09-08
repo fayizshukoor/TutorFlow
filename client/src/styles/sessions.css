@@ -850,6 +850,45 @@
   line-height: 1.5;
 }
 
+.homework-progress-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.homework-progress-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #C084FC;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  padding: 0.35rem 0.8rem;
+  border-radius: 9999px;
+}
+
+.homework-progress-bar-container {
+  width: 100%;
+  margin: -0.25rem 0 0.5rem 0;
+}
+
+.homework-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.homework-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #818CF8, #A855F7, #34D399);
+  border-radius: 9999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .homework-tasks-list {
   display: flex;
   flex-direction: column;
@@ -870,9 +909,18 @@
   transition: all 0.2s ease;
 }
 
-.homework-task-row:hover {
+.homework-task-row:hover:not(.readonly-task) {
   border-color: rgba(168, 85, 247, 0.35);
   background: rgba(0, 0, 0, 0.35);
+}
+
+.homework-task-row.readonly-task {
+  cursor: default !important;
+}
+
+.homework-task-row.readonly-task:hover {
+  border-color: var(--border-color);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .homework-checkbox {
@@ -891,15 +939,61 @@
   transition: all 0.2s ease;
 }
 
+.homework-checkbox.readonly {
+  cursor: default !important;
+  opacity: 0.85;
+}
+
 .homework-checkbox.checked {
   background: #A855F7;
   border-color: #A855F7;
   color: white;
 }
 
-.homework-task-row.checked-task {
+.homework-task-row.checked-task .homework-task-text {
   opacity: 0.7;
   text-decoration: line-through;
+}
+
+.homework-task-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.homework-task-text {
+  font-size: 0.875rem;
+  color: var(--text-main);
+  line-height: 1.5;
+  transition: opacity 0.2s ease;
+}
+
+.homework-task-timestamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #34D399;
+}
+
+.homework-task-pending {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.homework-saving-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #C084FC;
+  background: rgba(168, 85, 247, 0.15);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 /* Responsive queries */

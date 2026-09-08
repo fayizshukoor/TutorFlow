@@ -530,4 +530,98 @@ router.post('/:id/ai-review', authenticate, requireTutor, async (req, res) => {
   }
 });
 
+/**
+ * @route   PATCH /api/sessions/:id/homework-progress
+ * @desc    Update homework task completion tracking (Assigned Student Only)
+ * @access  Private (Student Only)
+ * @allowed Only for 'ai_reviewed' sessions belonging to the authenticated student
+ */
+router.patch('/:id/homework-progress', authenticate, requireStudent, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { taskIndex, completed } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invalid session ID format.'
+      });
+    }
+
+    if (typeof taskIndex !== 'number' || !Number.isInteger(taskIndex) || typeof completed !== 'boolean') {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'taskIndex (integer) and completed (boolean) are required.'
+      });
+    }
+
+    const session = await Session.findById(id);
+    if (!session) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Session not found.'
+      });
+    }
+
+    // Verify student ownership
+    const studentProfile = await Student.findOne({ userId: req.user._id });
+    if (!studentProfile || !session.studentId.equals(studentProfile._id)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Access denied. You are not assigned to this session.'
+      });
+    }
+
+    // Status verification: only ai_reviewed sessions have assigned homework
+    if (session.status !== 'ai_reviewed') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `Homework progress can only be updated for AI-reviewed sessions. Current status is '${session.status}'.`
+      });
+    }
+
+    // Validate taskIndex boundary against session.aiReview.homework.tasks
+    const tasks = session.aiReview?.homework?.tasks;
+    if (!Array.isArray(tasks) || taskIndex < 0 || taskIndex >= tasks.length) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: `Invalid taskIndex (${taskIndex}). Must be between 0 and ${(tasks?.length || 1) - 1}.`
+      });
+    }
+
+    if (!Array.isArray(session.homeworkProgress)) {
+      session.homeworkProgress = [];
+    }
+
+    const existingIdx = session.homeworkProgress.findIndex((item) => item.taskIndex === taskIndex);
+    if (existingIdx !== -1) {
+      session.homeworkProgress[existingIdx].completed = completed;
+      session.homeworkProgress[existingIdx].completedAt = completed ? new Date() : null;
+    } else {
+      session.homeworkProgress.push({
+        taskIndex,
+        completed,
+        completedAt: completed ? new Date() : null
+      });
+    }
+
+    await session.save();
+    await session.populate('studentId', 'name email subject currentLevel');
+    await session.populate('tutorId', 'name email');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Homework progress updated successfully.',
+      homeworkProgress: session.homeworkProgress,
+      session
+    });
+  } catch (error) {
+    console.error('Update homework progress error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to update homework progress.'
+    });
+  }
+});
+
 export default router;

@@ -189,7 +189,29 @@ export async function seedUsers() {
           generatedAt: new Date(now - 3 * 24 * 60 * 60 * 1000),
           modelUsed: 'gemini-3.6-flash'
         },
-        aiSummary: 'Sam demonstrated strong algebraic foundations with parametric differentiation. Target practice is needed on polar petal area integrals.'
+        aiSummary: 'Sam demonstrated strong algebraic foundations with parametric differentiation. Target practice is needed on polar petal area integrals.',
+        homeworkProgress: [
+          {
+            taskIndex: 0,
+            completed: true,
+            completedAt: new Date(now - 2 * 24 * 60 * 60 * 1000)
+          },
+          {
+            taskIndex: 1,
+            completed: true,
+            completedAt: new Date(now - 1 * 24 * 60 * 60 * 1000)
+          },
+          {
+            taskIndex: 2,
+            completed: false,
+            completedAt: null
+          },
+          {
+            taskIndex: 3,
+            completed: false,
+            completedAt: null
+          }
+        ]
       },
       { upsert: true, new: true, runValidators: true }
     );

@@ -188,6 +188,15 @@ export const sessionApi = {
     });
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
+  },
+
+  updateHomeworkProgress: async (id, { taskIndex, completed }) => {
+    const res = await apiRequest(`/sessions/${id}/homework-progress`, {
+      method: 'PATCH',
+      body: { taskIndex, completed }
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
   }
 };
 

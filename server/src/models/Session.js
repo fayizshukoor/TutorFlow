@@ -58,7 +58,23 @@ const sessionSchema = new mongoose.Schema(
     aiReview: {
       type: mongoose.Schema.Types.Mixed,
       default: null
-    }
+    },
+    homeworkProgress: [
+      {
+        taskIndex: {
+          type: Number,
+          required: true
+        },
+        completed: {
+          type: Boolean,
+          default: false
+        },
+        completedAt: {
+          type: Date,
+          default: null
+        }
+      }
+    ]
   },
   {
     timestamps: true
