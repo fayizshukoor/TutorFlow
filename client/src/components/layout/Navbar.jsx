@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Lock, Users } from 'lucide-react';
+import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Lock, Users, Calendar } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Navbar() {
@@ -55,6 +55,16 @@ export default function Navbar() {
             >
               <Users size={16} />
               <span>Students</span>
+            </NavLink>
+          )}
+
+          {isAuthenticated && user?.role === 'tutor' && (
+            <NavLink 
+              to="/tutor/sessions"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
+              <Calendar size={16} />
+              <span>Sessions</span>
             </NavLink>
           )}
 

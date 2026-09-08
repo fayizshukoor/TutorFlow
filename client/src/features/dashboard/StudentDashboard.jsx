@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
+  Clock,
   Bot,
   Shield,
   Lock,
@@ -11,10 +12,12 @@ import {
   AlertTriangle,
   GraduationCap,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  FileText,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { studentApi } from '../../services/api';
+import { studentApi, sessionApi } from '../../services/api';
 import RoleTester from './RoleTester';
 
 export default function StudentDashboard({ onAttemptTutorPage }) {
@@ -24,21 +27,37 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
   const [studentProfile, setStudentProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadStudentProfile() {
-      try {
-        const { ok, data } = await studentApi.getMyProfile();
-        if (ok) {
-          setStudentProfile(data.student);
-        }
-      } catch (err) {
-        console.error('Failed to load student profile for me:', err);
-      } finally {
-        setProfileLoading(false);
+  // Sessions state
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [selectedNotesSession, setSelectedNotesSession] = useState(null);
+
+  const loadData = useCallback(async () => {
+    setProfileLoading(true);
+    setSessionsLoading(true);
+    try {
+      const [profileRes, sessionsRes] = await Promise.all([
+        studentApi.getMyProfile(),
+        sessionApi.getMySessions()
+      ]);
+
+      if (profileRes.ok) {
+        setStudentProfile(profileRes.data.student);
       }
+      if (sessionsRes.ok) {
+        setSessions(sessionsRes.data.sessions || []);
+      }
+    } catch (err) {
+      console.error('Failed to load student dashboard data:', err);
+    } finally {
+      setProfileLoading(false);
+      setSessionsLoading(false);
     }
-    loadStudentProfile();
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleAttemptTutor = () => {
     if (onAttemptTutorPage) {
@@ -47,6 +66,26 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
       navigate('/tutor');
     }
   };
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const upcomingSessions = sessions.filter(
+    (s) => s.status === 'scheduled' || s.status === 'in_progress'
+  );
+  const pastSessions = sessions.filter(
+    (s) => s.status === 'completed' || s.status === 'ai_reviewed'
+  );
 
   return (
     <div className="dashboard-container">
@@ -62,11 +101,11 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
                 <Shield size={13} />
                 STUDENT ACCOUNT
               </span>
-              <span className="milestone-badge">Milestone 3 Verified</span>
+              <span className="milestone-badge">Milestone 4 Verified</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Sam'}</h1>
             <p className="dashboard-subtitle">
-              You have student access. You can view your enrolled subjects, learning goals, scheduled sessions, and AI summaries.
+              You have student access. You can view your enrolled subjects, learning goals, scheduled 1-on-1 sessions, and finalized lesson notes.
             </p>
           </div>
         </div>
@@ -114,6 +153,113 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
           <span>Attempt to Open Tutor Console</span>
           <ArrowRight size={15} />
         </button>
+      </div>
+
+      {/* Milestone 4: My Tutoring Sessions (Upcoming & Completed) */}
+      <div className="dashboard-section">
+        <div className="roster-header-row">
+          <div>
+            <div className="roster-pill-row">
+              <span className="badge-subject">
+                <Calendar size={13} />
+                Milestone 4 Live
+              </span>
+            </div>
+            <h2 className="section-title" style={{ marginBottom: 0 }}>My Tutoring Sessions</h2>
+            <p className="sessions-subtitle">
+              Upcoming scheduled sessions and post-lesson notes provided by your tutor
+            </p>
+          </div>
+
+          <button
+            onClick={loadData}
+            className="btn-refresh-icon"
+            title="Refresh sessions"
+            disabled={sessionsLoading}
+          >
+            <RefreshCw size={14} className={sessionsLoading ? 'spinning' : ''} />
+          </button>
+        </div>
+
+        {sessionsLoading ? (
+          <div className="student-profile-summary-card loading">
+            <RefreshCw size={20} className="spin" />
+            <span>Loading scheduled sessions...</span>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="roster-empty-card">
+            <div className="empty-icon-wrap">
+              <Calendar size={28} />
+            </div>
+            <h3 className="empty-title">No Sessions Scheduled Yet</h3>
+            <p className="empty-desc">
+              Your tutor hasn't scheduled any upcoming sessions for you. They will appear here once booked.
+            </p>
+          </div>
+        ) : (
+          <div className="sessions-cards-grid">
+            {sessions.map((session) => {
+              const sid = session.id || session._id;
+              return (
+                <div key={sid} className="session-card">
+                  <div className="session-card-header">
+                    <div>
+                      <h3 className="session-topic-title">{session.topic}</h3>
+                      <div className="session-student-row">
+                        <span>Tutor: {session.tutorId?.name || 'Alex Rivera'}</span>
+                      </div>
+                    </div>
+
+                    <span className={`status-pill ${session.status}`}>
+                      <span className="status-dot" />
+                      {session.status.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div className="session-meta-grid">
+                    <div className="session-meta-item">
+                      <Calendar size={14} className="meta-icon-accent" />
+                      <span>{formatDateTime(session.scheduledAt)}</span>
+                    </div>
+                    <div className="session-meta-item">
+                      <Clock size={14} className="meta-icon-accent" />
+                      <span>{session.durationMinutes} Minutes</span>
+                    </div>
+                  </div>
+
+                  {session.notes ? (
+                    <div className="session-notes-snippet">
+                      <FileText size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                      {session.notes}
+                    </div>
+                  ) : (
+                    <div className="empty-subtext" style={{ fontSize: '0.8rem' }}>
+                      {session.status === 'scheduled'
+                        ? 'Lesson notes will be recorded during the live session.'
+                        : 'No notes recorded for this session.'}
+                    </div>
+                  )}
+
+                  <div className="session-card-actions">
+                    <span className="form-hint">
+                      {session.status === 'in_progress' ? '⚡ Session in progress' : 'Read-only access'}
+                    </span>
+                    {session.notes && (
+                      <button
+                        onClick={() => setSelectedNotesSession(session)}
+                        className="btn-view-profile"
+                        style={{ padding: '0.35rem 0.75rem' }}
+                      >
+                        <FileText size={13} />
+                        <span>View Full Notes</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Enrolled Student Profile Overview (Milestone 3) */}
@@ -191,52 +337,51 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
         )}
       </div>
 
-      {/* Feature / Milestone Preview Grid */}
-      <div className="dashboard-section">
-        <h2 className="section-title">Student Portal & Upcoming Milestones</h2>
-        <div className="preview-grid">
-          <div className="preview-card">
-            <div className="preview-card-header">
-              <div className="preview-icon-box">
-                <Calendar size={20} />
+      {/* Notes Reader Modal */}
+      {selectedNotesSession && (
+        <div className="modal-backdrop">
+          <div className="modal-container" style={{ maxWidth: '560px' }}>
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <div className="modal-icon-badge" style={{ background: 'linear-gradient(135deg, #06B6D4, #3B82F6)' }}>
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <h3 className="modal-title">Session Lesson Notes</h3>
+                  <p className="modal-subtitle">{selectedNotesSession.topic}</p>
+                </div>
               </div>
-              <span className="preview-tag-next">Milestone 4</span>
+              <button
+                onClick={() => setSelectedNotesSession(null)}
+                className="btn-modal-close"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <h3 className="preview-card-title">My Sessions</h3>
-            <p className="preview-card-desc">
-              View scheduled 1-on-1 tutoring sessions, timing, and meeting links provided by your tutor.
-            </p>
-          </div>
 
-          <div className="preview-card">
-            <div className="preview-card-header">
-              <div className="preview-icon-box">
-                <Bot size={20} />
+            <div className="notes-card" style={{ padding: '1.25rem', background: 'rgba(0,0,0,0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                <span>Date: {formatDateTime(selectedNotesSession.scheduledAt)}</span>
+                <span className={`status-pill ${selectedNotesSession.status}`}>
+                  {selectedNotesSession.status.replace('_', ' ')}
+                </span>
               </div>
-              <span className="preview-tag-next">Milestone 5</span>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.925rem', color: 'var(--text-main)' }}>
+                {selectedNotesSession.notes || 'No notes available.'}
+              </div>
             </div>
-            <h3 className="preview-card-title">AI Summaries & Homework</h3>
-            <p className="preview-card-desc">
-              Access Gemini-generated post-session review notes, actionable takeaways, and homework assignments.
-            </p>
-          </div>
 
-          <div className="preview-card live-card">
-            <div className="preview-card-header">
-              <div className="preview-icon-box" style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#06B6D4' }}>
-                <BookOpen size={20} />
-              </div>
-              <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
-                Milestone 3 Live
-              </span>
+            <div className="modal-actions">
+              <button
+                onClick={() => setSelectedNotesSession(null)}
+                className="btn-secondary"
+              >
+                Close
+              </button>
             </div>
-            <h3 className="preview-card-title">Academic Profile</h3>
-            <p className="preview-card-desc">
-              Track progress across target subjects and key concepts identified by your tutor.
-            </p>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Interactive Auth & Role Verification Widget */}
       <div className="dashboard-section">

@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { connectDB } from '../config/db.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
+import Session from '../models/Session.js';
 
 dotenv.config();
 
@@ -95,6 +96,51 @@ export async function seedUsers() {
     );
     console.log(`✅ Student profile seeded: ${studentProfile.name} (${studentProfile.subject} - ${studentProfile.currentLevel}) [Profile ID: ${studentProfile._id}]`);
 
+    // 5. Seed Dynamic Sessions (Relative timestamps for realism)
+    const now = Date.now();
+    const upcomingScheduledAt = new Date(now + 24 * 60 * 60 * 1000); // Tomorrow (+24h)
+    const completedScheduledAt = new Date(now - 24 * 60 * 60 * 1000); // Yesterday (-24h)
+
+    // Seed/Upsert Upcoming Session
+    let upcomingSession = await Session.findOneAndUpdate(
+      {
+        tutorId: tutor._id,
+        studentId: studentProfile._id,
+        topic: 'Taylor & Maclaurin Series - Power Series Convergence'
+      },
+      {
+        tutorId: tutor._id,
+        studentId: studentProfile._id,
+        topic: 'Taylor & Maclaurin Series - Power Series Convergence',
+        scheduledAt: upcomingScheduledAt,
+        durationMinutes: 60,
+        status: 'scheduled',
+        notes: ''
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+    console.log(`✅ Upcoming session seeded: ${upcomingSession.topic} (${upcomingSession.status}) on ${upcomingSession.scheduledAt.toISOString()}`);
+
+    // Seed/Upsert Completed Session
+    let completedSession = await Session.findOneAndUpdate(
+      {
+        tutorId: tutor._id,
+        studentId: studentProfile._id,
+        topic: 'Integration Techniques & Trigonometric Substitution Drill'
+      },
+      {
+        tutorId: tutor._id,
+        studentId: studentProfile._id,
+        topic: 'Integration Techniques & Trigonometric Substitution Drill',
+        scheduledAt: completedScheduledAt,
+        durationMinutes: 60,
+        status: 'completed',
+        notes: 'Reviewed standard integral substitutions (sin/tan/sec). Sam solved 4 out of 5 AP FRQ-style problems correctly. Focus area for next drill: integrating sec^3(x) and applying integration by parts twice.'
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+    console.log(`✅ Completed session seeded: ${completedSession.topic} (${completedSession.status}) with finalized notes`);
+
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('====================================================');
     console.log('Test Accounts Summary:');
@@ -104,9 +150,12 @@ export async function seedUsers() {
     console.log(`📚 Subject: ${studentProfile.subject} | Level: ${studentProfile.currentLevel}`);
     console.log(`🎯 Goals:   ${studentProfile.learningGoals.join(', ')}`);
     console.log(`⚠️ Weak:    ${studentProfile.weakAreas.join(', ')}`);
+    console.log('Seeded Sessions:');
+    console.log(`📅 Upcoming:  ${upcomingSession.topic} (${upcomingSession.scheduledAt.toLocaleString()})`);
+    console.log(`🏁 Completed: ${completedSession.topic} (Notes finalized)`);
     console.log('====================================================\n');
 
-    return { tutor, studentUser, studentProfile };
+    return { tutor, studentUser, studentProfile, upcomingSession, completedSession };
   } catch (error) {
     console.error('❌ Error during seeding:', error.message);
     throw error;

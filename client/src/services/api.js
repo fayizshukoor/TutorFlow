@@ -128,10 +128,65 @@ export const studentApi = {
   }
 };
 
+/**
+ * Session Scheduling and Lifecycle API Service
+ */
+export const sessionApi = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.status) query.append('status', params.status);
+    if (params.studentId) query.append('studentId', params.studentId);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    const res = await apiRequest(`/sessions${qs}`);
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  },
+
+  getMySessions: async () => {
+    const res = await apiRequest('/sessions/my-sessions');
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  },
+
+  getById: async (id) => {
+    const res = await apiRequest(`/sessions/${id}`);
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  },
+
+  create: async (sessionData) => {
+    const res = await apiRequest('/sessions', {
+      method: 'POST',
+      body: sessionData
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  },
+
+  updateStatus: async (id, status) => {
+    const res = await apiRequest(`/sessions/${id}/status`, {
+      method: 'PATCH',
+      body: { status }
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  },
+
+  updateNotes: async (id, notes) => {
+    const res = await apiRequest(`/sessions/${id}/notes`, {
+      method: 'PATCH',
+      body: { notes }
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  }
+};
+
 export default {
   apiRequest,
   authApi,
   studentApi,
+  sessionApi,
   getStoredToken,
   setStoredToken,
   removeStoredToken

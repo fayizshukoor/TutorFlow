@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import studentRoutes from './routes/students.js';
+import sessionRoutes from './routes/sessions.js';
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +38,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/sessions', sessionRoutes);
 
 // Health Check Endpoint (Milestone 1 requirement preserved)
 app.get('/api/health', (req, res) => {
@@ -58,7 +60,13 @@ app.get('/', (req, res) => {
       students: 'GET /api/students (Tutor only)',
       createStudent: 'POST /api/students (Tutor only)',
       studentById: 'GET /api/students/:id (Tutor only)',
-      updateStudent: 'PUT /api/students/:id (Tutor only)'
+      updateStudent: 'PUT /api/students/:id (Tutor only)',
+      sessions: 'GET /api/sessions (Tutor only)',
+      createSession: 'POST /api/sessions (Tutor only)',
+      studentSessions: 'GET /api/sessions/my-sessions (Student only)',
+      sessionById: 'GET /api/sessions/:id',
+      sessionStatus: 'PATCH /api/sessions/:id/status (Tutor only)',
+      sessionNotes: 'PATCH /api/sessions/:id/notes (Tutor only, in_progress only)'
     }
   });
 });

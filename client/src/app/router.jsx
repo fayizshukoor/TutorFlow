@@ -10,6 +10,8 @@ import TutorConsole from '../features/dashboard/TutorConsole';
 import StudentDashboard from '../features/dashboard/StudentDashboard';
 import StudentList from '../features/students/StudentList';
 import StudentProfile from '../features/students/StudentProfile';
+import SessionList from '../features/sessions/SessionList';
+import SessionWorkspace from '../features/sessions/SessionWorkspace';
 
 export const router = createBrowserRouter([
   {
@@ -47,6 +49,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['tutor']}>
             <StudentProfile />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: 'tutor/sessions',
+        element: (
+          <ProtectedRoute allowedRoles={['tutor']}>
+            <SessionList />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: 'tutor/sessions/:id',
+        element: (
+          <ProtectedRoute allowedRoles={['tutor']}>
+            <SessionWorkspace />
           </ProtectedRoute>
         )
       },

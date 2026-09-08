@@ -104,17 +104,29 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
             </p>
           </div>
 
-          <div className="preview-card">
+          <div className="preview-card live-card">
             <div className="preview-card-header">
-              <div className="preview-icon-box">
+              <div className="preview-icon-box" style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA' }}>
                 <Calendar size={20} />
               </div>
-              <span className="preview-tag-next">Milestone 4</span>
+              <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
+                Milestone 4 Live
+              </span>
             </div>
-            <h3 className="preview-card-title">Session State Machine</h3>
+            <h3 className="preview-card-title">1-on-1 Sessions & Live Notes</h3>
             <p className="preview-card-desc">
-              Schedule 1-on-1 tutoring sessions with automatic schedule collision prevention and lifecycle tracking.
+              Schedule 1-on-1 sessions with double-booking clash protection, live debounced autosave notes, and state machine lifecycle.
             </p>
+            <div style={{ marginTop: '0.75rem' }}>
+              <button
+                onClick={() => navigate('/tutor/sessions')}
+                className="btn-workspace-link"
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                <span>Open Sessions Hub</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="preview-card">

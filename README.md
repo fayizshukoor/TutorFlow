@@ -148,6 +148,12 @@ TutorFlow/
 | `GET` | `/api/students/:id` | Tutor Only | Retrieve single student profile (ownership verified) | `{"success":true,"student":{"name":"Sam Chen",...}}` |
 | `PUT` | `/api/students/:id` | Tutor Only | Update student profile (whitelisted fields) | `{"success":true,"message":"...","student":{...}}` |
 | `GET` | `/api/students/profile/me` | Student Only | Get student's own enrolled profile | `{"success":true,"student":{"subject":"AP Calculus BC",...}}` |
+| `GET` | `/api/sessions` | Tutor Only | List all sessions owned by tutor (sorted by scheduled date) | `{"success":true,"count":2,"sessions":[...]}` |
+| `POST` | `/api/sessions` | Tutor Only | Schedule a 1-on-1 session with collision clash detection | `{"success":true,"message":"...","session":{...}}` |
+| `GET` | `/api/sessions/my-sessions` | Student Only | Get authenticated student's own sessions | `{"success":true,"count":2,"sessions":[...]}` |
+| `GET` | `/api/sessions/:id` | Tutor / Student | Get session details & notes (ownership verified) | `{"success":true,"session":{...}}` |
+| `PATCH` | `/api/sessions/:id/status` | Tutor Only | Update status (`scheduled` ➔ `in_progress` ➔ `completed`) | `{"success":true,"message":"...","session":{...}}` |
+| `PATCH` | `/api/sessions/:id/notes` | Tutor Only | Debounced autosave notes (only allowed when `in_progress`) | `{"success":true,"message":"...","session":{...}}` |
 
 ---
 
@@ -186,11 +192,11 @@ TutorFlow/
      GEMINI_API_KEY=your_gemini_api_key_here
      ```
 
-4. **Seed Development Test Accounts & Student Profile:**
+4. **Seed Development Test Accounts, Student Profile & Sessions:**
    ```bash
    npm run seed
    ```
-   > 💡 *The seed script is safe and idempotent to run repeatedly without creating duplicates.*
+   > 💡 *The seed script is safe and idempotent to run repeatedly without creating duplicates. Dates are generated dynamically relative to current execution time.*
 
 5. Start the backend server:
    - **Development mode (with auto-reload):**
@@ -245,6 +251,6 @@ TutorFlow/
 1. ✅ **Milestone 1: Project Setup & Health Check**: Vite + React frontend, Express backend, live health check.
 2. ✅ **Milestone 2: JWT Authentication & Role-Based Access**: User Mongoose model, bcryptjs hashing, JWT bearer tokens, role middleware (`tutor` vs `student`), idempotent seeding, login page, role dashboards, and 403 access denial guards.
 3. ✅ **Milestone 3: Student Management & Profiles**: Student Mongoose model with `userId` and `tutorId` relations, tutor-only CRUD endpoints with server-side ownership gating, seeded profile, interactive student roster with search & stats, creation modal with dynamic tag editors, and student profile view/edit mode.
-4. ⏳ **Milestone 4: Session Lifecycle State Machine**: `Scheduled` ➔ `In progress` ➔ `Completed` ➔ `AI reviewed` with schedule clash prevention.
+4. ✅ **Milestone 4: Session Lifecycle State Machine**: Session Mongoose model, tutor scheduling with double-booking collision prevention, strict server-side state transitions (`scheduled` ➔ `in_progress` ➔ `completed`), live notes editor with debounced autosaving and read-only lockdown on completion, student session timeline and notes viewer.
 5. ⏳ **Milestone 5: Live Notes & Gemini AI Assistant**: Debounced autosave notes, AI pre-session lesson plans, and post-session homework reviews.
 6. ⏳ **Milestone 6: Deployments**: Vercel (Frontend) & Render (Backend).
