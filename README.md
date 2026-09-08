@@ -47,39 +47,60 @@ TutorFlow helps tutors schedule sessions, manage student profiles, autosave live
 TutorFlow/
 ├── client/                 # Frontend React application (Vite)
 │   ├── src/
-│   │   ├── components/     # UI Components
-│   │   │   ├── Navbar.jsx              # Responsive header navigation
-│   │   │   ├── LoginPage.jsx           # Sign in view with demo quick-fill
-│   │   │   ├── TutorDashboard.jsx      # Tutor administration overview & student roster
-│   │   │   ├── TutorConsole.jsx        # Protected tutor verification console
-│   │   │   ├── StudentDashboard.jsx    # Student view with enrolled academic profile
-│   │   │   ├── StudentList.jsx         # Student roster, search filter & stats counters
-│   │   │   ├── StudentCreateModal.jsx  # Student enrollment modal with dynamic tag editors
-│   │   │   ├── StudentProfile.jsx      # Student detail view & inline edit form
-│   │   │   ├── StudentRosterPage.jsx   # Dedicated /tutor/students route wrapper
-│   │   │   ├── RoleTester.jsx          # Live interactive RBAC endpoint verifier
-│   │   │   ├── AccessDenied.jsx        # 403 Forbidden safeguard page
-│   │   │   ├── HomePage.jsx            # Public landing page with stack summary
-│   │   │   └── ProtectedRoute.jsx      # Client-side role route guard
-│   │   ├── context/        # AuthContext (JWT session management, authFetch)
-│   │   ├── App.jsx         # App view routing and state manager
-│   │   ├── index.css       # Core styling, tokens & glassmorphism design system
-│   │   └── main.jsx        # React root mount
+│   │   ├── app/            # Application orchestration & routing
+│   │   │   ├── App.jsx                 # Provider shell (AuthProvider & RouterProvider)
+│   │   │   └── router.jsx              # Declarative routes & role protection
+│   │   ├── components/     # Reusable layout & common components
+│   │   │   ├── auth/
+│   │   │   │   ├── AccessDenied.jsx    # 403 Forbidden safeguard page
+│   │   │   │   ├── LoginPage.jsx       # Sign in view with demo quick-fill
+│   │   │   │   └── ProtectedRoute.jsx  # Client-side role route guard
+│   │   │   ├── common/
+│   │   │   │   └── HomePage.jsx        # Public landing page with stack summary
+│   │   │   └── layout/
+│   │   │       ├── Navbar.jsx          # Responsive header navigation & role indicators
+│   │   │       └── RootLayout.jsx      # Root application layout wrapper
+│   │   ├── context/        # React Context
+│   │   │   └── AuthContext.jsx         # JWT session management & auth API state
+│   │   ├── features/       # Feature modules
+│   │   │   ├── dashboard/
+│   │   │   │   ├── RoleTester.jsx      # Live interactive RBAC endpoint verifier
+│   │   │   │   ├── StudentDashboard.jsx# Student view with enrolled academic profile
+│   │   │   │   ├── TutorConsole.jsx    # Protected tutor verification console
+│   │   │   │   └── TutorDashboard.jsx  # Tutor administration overview
+│   │   │   └── students/
+│   │   │       ├── StudentCreateModal.jsx # Student enrollment modal with dynamic tag editors
+│   │   │       ├── StudentList.jsx     # Student roster, search filter & stats counters
+│   │   │       └── StudentProfile.jsx  # Student detail view & inline edit form
+│   │   ├── services/       # Client API service layer
+│   │   │   └── api.js                  # Centralized fetch wrapper (authApi, studentApi)
+│   │   ├── styles/         # Modular CSS architecture
+│   │   │   ├── tokens.css              # Design tokens (colors, gradients, typography)
+│   │   │   ├── base.css                # Global CSS reset & foundational styles
+│   │   │   ├── layout.css              # Containers, headers, footers & hero sections
+│   │   │   ├── navigation.css          # Top navigation bar & menus
+│   │   │   ├── forms.css               # Form controls, inputs & login cards
+│   │   │   ├── dashboards.css          # Dashboard metrics, grids & cards
+│   │   │   ├── students.css            # Roster grid, student cards & profile styles
+│   │   │   └── responsive.css          # Tablet & mobile media queries
+│   │   └── main.jsx        # React root entry point
 │   ├── .env.example        # Client environment template
 │   ├── package.json
 │   └── vite.config.js      # Vite proxy to backend on port 5000
 │
 ├── server/                 # Backend Node.js / Express API (Port 5000)
 │   ├── src/
-│   │   ├── models/         # Mongoose models
-│   │   │   ├── User.js                 # User schema (roles: tutor, student)
-│   │   │   └── Student.js              # Student schema (userId, tutorId, goals, weakAreas)
+│   │   ├── config/         # Server configuration
+│   │   │   └── db.js                   # MongoDB connection handler
 │   │   ├── middleware/     # Auth & RBAC middleware (authenticate, requireTutor, requireStudent)
+│   │   ├── models/         # Mongoose models
+│   │   │   ├── Student.js              # Student schema (userId, tutorId, goals, weakAreas)
+│   │   │   └── User.js                 # User schema (roles: tutor, student)
 │   │   ├── routes/         # Express routers
 │   │   │   ├── auth.js                 # Auth endpoints (/login, /me, /test)
 │   │   │   └── students.js             # Tutor student CRUD & ownership checks
-│   │   ├── db.js           # MongoDB connection handler
-│   │   ├── seed.js         # Idempotent database seed script (Users & Student Profile)
+│   │   ├── scripts/        # Operational and CLI scripts
+│   │   │   └── seed.js                 # Idempotent database seed script (Users & Student Profile)
 │   │   └── index.js        # Express app entry & health endpoint
 │   ├── .env.example        # Server environment template
 │   └── package.json
