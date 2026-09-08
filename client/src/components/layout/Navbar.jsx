@@ -41,6 +41,7 @@ export default function Navbar() {
           {isAuthenticated && (
             <NavLink 
               to={dashboardRoute}
+              end
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
               <LayoutDashboard size={16} />
