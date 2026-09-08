@@ -331,7 +331,6 @@ GEMINI_MODEL=gemini-3.6-flash
 
 > 🔒 **Security Notice:** The Gemini API Key is kept strictly server-side. No client-side code touches or logs the Google AI key.
 
-## What I Would Build Next
 
 ## What I Would Build Next
 
