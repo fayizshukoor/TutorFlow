@@ -104,6 +104,26 @@ export default function SessionScheduleModal({ isOpen, onClose, onSessionCreated
       });
 
       if (!ok) {
+        if (data?.conflict) {
+          const start = new Date(data.conflict.scheduledAt);
+          const end = new Date(start.getTime() + (data.conflict.durationMinutes || 60) * 60000);
+          const formattedDate = start.toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+          });
+          const formattedStartTime = start.toLocaleTimeString(undefined, {
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const formattedEndTime = end.toLocaleTimeString(undefined, {
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          throw new Error(
+            `Scheduling conflict: You already have a session ('${data.conflict.topic}') scheduled on ${formattedDate} from ${formattedStartTime} to ${formattedEndTime}.`
+          );
+        }
         throw new Error(data.message || data.error || 'Failed to schedule session.');
       }
 
