@@ -1,8 +1,8 @@
 import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Users, Calendar, Bot, Shield, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import StudentList from './StudentList';
+import { useNavigate } from 'react-router-dom';
+import { Users, Calendar, Bot, Shield, ArrowRight, Lock } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import StudentList from '../students/StudentList';
 import RoleTester from './RoleTester';
 
 export default function TutorDashboard({ onNavigateToTutorConsole }) {

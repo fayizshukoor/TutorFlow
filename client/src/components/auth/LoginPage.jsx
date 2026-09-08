@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage({ onLoginSuccess, onBackHome }) {
   const { user, isAuthenticated, login, authError, setAuthError } = useAuth();
@@ -86,7 +86,7 @@ export default function LoginPage({ onLoginSuccess, onBackHome }) {
         <div className="quick-fill-box">
           <div className="quick-fill-label">
             <Sparkles size={14} color="#818CF8" />
-            <span>Quick-Fill Demo Accounts (Milestone 2)</span>
+            <span>Quick-Fill Demo Accounts</span>
           </div>
           <div className="quick-fill-buttons">
             <button

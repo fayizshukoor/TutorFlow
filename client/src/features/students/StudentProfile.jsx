@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
-  User,
   Mail,
   BookOpen,
   GraduationCap,
@@ -19,12 +18,10 @@ import {
   CheckCircle2,
   Clock
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { studentApi } from '../../services/api';
 
 export default function StudentProfile() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { authFetch } = useAuth();
 
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,10 +47,9 @@ export default function StudentProfile() {
     setLoading(true);
     setError(null);
     try {
-      const response = await authFetch(`/students/${id}`);
-      const data = await response.json();
+      const { ok, data } = await studentApi.getById(id);
 
-      if (!response.ok) {
+      if (!ok) {
         throw new Error(data.message || data.error || 'Could not load student profile.');
       }
 
@@ -72,7 +68,7 @@ export default function StudentProfile() {
     } finally {
       setLoading(false);
     }
-  }, [id, authFetch]);
+  }, [id]);
 
   useEffect(() => {
     fetchStudent();
@@ -157,21 +153,16 @@ export default function StudentProfile() {
 
     setSaving(true);
     try {
-      const response = await authFetch(`/students/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          name: editFormData.name.trim(),
-          email: editFormData.email.trim(),
-          subject: editFormData.subject.trim(),
-          currentLevel: editFormData.currentLevel.trim(),
-          learningGoals: editGoals,
-          weakAreas: editWeakAreas
-        })
+      const { ok, data } = await studentApi.update(id, {
+        name: editFormData.name.trim(),
+        email: editFormData.email.trim(),
+        subject: editFormData.subject.trim(),
+        currentLevel: editFormData.currentLevel.trim(),
+        learningGoals: editGoals,
+        weakAreas: editWeakAreas
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!ok) {
         throw new Error(data.message || data.error || 'Failed to update student profile.');
       }
 
@@ -313,18 +304,19 @@ export default function StudentProfile() {
           </div>
         </div>
 
+        {/* User-friendly summary box without exposing internal ObjectIDs */}
         <div className="student-id-box">
           <div className="meta-row">
-            <span className="meta-label">Profile ID:</span>
-            <span className="meta-val mono">{student._id || student.id}</span>
+            <span className="meta-label">Enrollment:</span>
+            <span className="meta-val status-active">Active</span>
           </div>
           <div className="meta-row">
-            <span className="meta-label">Linked User:</span>
-            <span className="meta-val mono">{student.userId?._id || student.userId || 'Linked'}</span>
+            <span className="meta-label">Focus Subject:</span>
+            <span className="meta-val">{student.subject}</span>
           </div>
           <div className="meta-row">
-            <span className="meta-label">Owner Tutor:</span>
-            <span className="meta-val status-active">You (Alex Rivera)</span>
+            <span className="meta-label">Assigned Tutor:</span>
+            <span className="meta-val">Alex Rivera</span>
           </div>
         </div>
       </div>
@@ -345,7 +337,7 @@ export default function StudentProfile() {
                 </div>
               </div>
               <span className="immutable-pill">
-                <ShieldCheck size={13} /> User ID & Tutor ID Locked
+                <ShieldCheck size={13} /> Student Record Protected
               </span>
             </div>
 

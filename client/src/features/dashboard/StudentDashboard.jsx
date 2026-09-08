@@ -13,11 +13,12 @@ import {
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
+import { studentApi } from '../../services/api';
 import RoleTester from './RoleTester';
 
 export default function StudentDashboard({ onAttemptTutorPage }) {
-  const { user, authFetch } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [studentProfile, setStudentProfile] = useState(null);
@@ -26,9 +27,8 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
   useEffect(() => {
     async function loadStudentProfile() {
       try {
-        const res = await authFetch('/students/profile/me');
-        if (res.ok) {
-          const data = await res.json();
+        const { ok, data } = await studentApi.getMyProfile();
+        if (ok) {
           setStudentProfile(data.student);
         }
       } catch (err) {
@@ -38,7 +38,7 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
       }
     }
     loadStudentProfile();
-  }, [authFetch]);
+  }, []);
 
   const handleAttemptTutor = () => {
     if (onAttemptTutorPage) {

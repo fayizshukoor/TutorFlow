@@ -1,13 +1,13 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import AccessDenied from './AccessDenied';
 
 /**
  * Route wrapper that enforces authentication and optional role-based access control.
  * - Redirects unauthenticated users to /login (saving attempted route in location state)
  * - Renders AccessDenied if user lacks required role
- * - Renders children or Outlet when authorized
+ * - Renders children when authorized
  */
 export default function ProtectedRoute({ allowedRoles, children }) {
   const { user, isAuthenticated, loading } = useAuth();

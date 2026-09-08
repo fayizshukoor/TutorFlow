@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Users,
   UserPlus,
@@ -8,20 +8,13 @@ import {
   GraduationCap,
   Target,
   AlertTriangle,
-  ArrowRight,
   RefreshCw,
-  Sparkles,
-  ChevronRight,
-  Shield,
-  Layers
+  ChevronRight
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { studentApi } from '../../services/api';
 import StudentCreateModal from './StudentCreateModal';
 
 export default function StudentList({ isCompact = false }) {
-  const { authFetch } = useAuth();
-  const navigate = useNavigate();
-
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,10 +25,9 @@ export default function StudentList({ isCompact = false }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await authFetch('/students');
-      const data = await response.json();
+      const { ok, data } = await studentApi.getAll();
 
-      if (!response.ok) {
+      if (!ok) {
         throw new Error(data.message || data.error || 'Failed to fetch students.');
       }
 
@@ -46,7 +38,7 @@ export default function StudentList({ isCompact = false }) {
     } finally {
       setLoading(false);
     }
-  }, [authFetch]);
+  }, []);
 
   useEffect(() => {
     fetchStudents();

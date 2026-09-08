@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Play, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Terminal } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function RoleTester() {
   const { authFetch, user } = useAuth();

@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, 
   Activity, 
-  BookOpen, 
+  Users, 
   Calendar, 
   Bot, 
   FileText, 
-  Users, 
   CheckCircle2, 
   AlertCircle, 
   RefreshCw, 
@@ -16,13 +15,12 @@ import {
   Shield,
   LogIn
 } from 'lucide-react';
-import { useAuth, API_BASE_URL } from '../context/AuthContext';
+import { useAuth, API_BASE_URL } from '../../context/AuthContext';
 
 export default function HomePage() {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [healthStatus, setHealthStatus] = useState({ loading: true, data: null, error: null });
-  const [lastChecked, setLastChecked] = useState(null);
 
   const checkHealth = async () => {
     setHealthStatus(prev => ({ ...prev, loading: true, error: null }));
@@ -46,8 +44,6 @@ export default function HomePage() {
         data: null,
         error: err.message || 'Unable to connect to backend server'
       });
-    } finally {
-      setLastChecked(new Date().toLocaleTimeString());
     }
   };
 
@@ -63,7 +59,7 @@ export default function HomePage() {
       <section className="hero">
         <div className="hero-pill">
           <Sparkles size={14} />
-          <span>Milestone 2: JWT Auth & RBAC Active</span>
+          <span>Milestone 3: Student Management & RBAC Active</span>
         </div>
 
         <h1 className="hero-title">
@@ -72,7 +68,7 @@ export default function HomePage() {
 
         <p className="hero-subtitle">
           A dedicated 1-on-1 session platform for online tutors and students with 
-          secure JWT authentication, role-based dashboards, and AI-powered lesson plans.
+          secure JWT authentication, role-based dashboards, student rosters, and AI lesson plans.
         </p>
 
         {/* Action CTAs */}
@@ -150,15 +146,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Milestone 2 Highlight Banner */}
+      {/* Milestone Highlight Banner */}
       <section className="milestone2-banner">
         <div className="milestone2-badge">
           <Shield size={16} color="var(--primary)" />
-          <span>Milestone 2 Implemented</span>
+          <span>Milestone 3 Live</span>
         </div>
-        <h2 className="milestone2-title">JWT Authentication & Role-Based Access Control</h2>
+        <h2 className="milestone2-title">Student Management, Rosters & Security</h2>
         <p className="milestone2-desc">
-          Test tutor and student accounts with secure token verification, password hashing, and server-side route guards.
+          Enroll students, set target learning goals, track focus weak areas, and manage academic profiles with strict server-side ownership.
         </p>
         <div className="milestone2-actions">
           <button 
@@ -177,9 +173,9 @@ export default function HomePage() {
           <div className="feature-icon-wrapper">
             <Users size={22} />
           </div>
-          <h3 className="feature-title">Role-Based Access</h3>
+          <h3 className="feature-title">Student Rosters & Goals</h3>
           <p className="feature-desc">
-            Dedicated interfaces and permissions for Tutors and Students with secure JWT authentication.
+            Organize student profiles with subject tags, current academic levels, target milestones, and weakness trackers.
           </p>
         </div>
 

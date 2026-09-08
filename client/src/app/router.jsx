@@ -1,19 +1,17 @@
 import React from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import RootLayout from './components/RootLayout';
-import HomePage from './components/HomePage';
-import LoginPage from './components/LoginPage';
-import TutorDashboard from './components/TutorDashboard';
-import TutorConsole from './components/TutorConsole';
-import StudentRosterPage from './components/StudentRosterPage';
-import StudentProfile from './components/StudentProfile';
-import StudentDashboard from './components/StudentDashboard';
-import AccessDenied from './components/AccessDenied';
-import ProtectedRoute from './components/ProtectedRoute';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import RootLayout from '../components/layout/RootLayout';
+import HomePage from '../components/common/HomePage';
+import LoginPage from '../components/auth/LoginPage';
+import ProtectedRoute from '../components/auth/ProtectedRoute';
+import AccessDenied from '../components/auth/AccessDenied';
+import TutorDashboard from '../features/dashboard/TutorDashboard';
+import TutorConsole from '../features/dashboard/TutorConsole';
+import StudentDashboard from '../features/dashboard/StudentDashboard';
+import StudentList from '../features/students/StudentList';
+import StudentProfile from '../features/students/StudentProfile';
 
-// Create router outside the React component tree
-const router = createBrowserRouter([
+export const router = createBrowserRouter([
   {
     path: '/',
     element: <RootLayout />,
@@ -38,7 +36,9 @@ const router = createBrowserRouter([
         path: 'tutor/students',
         element: (
           <ProtectedRoute allowedRoles={['tutor']}>
-            <StudentRosterPage />
+            <div className="dashboard-container">
+              <StudentList />
+            </div>
           </ProtectedRoute>
         )
       },
@@ -78,10 +78,4 @@ const router = createBrowserRouter([
   }
 ]);
 
-export default function App() {
-  return (
-    <AuthProvider>
-      <RouterProvider router={router} />
-    </AuthProvider>
-  );
-}
+export default router;

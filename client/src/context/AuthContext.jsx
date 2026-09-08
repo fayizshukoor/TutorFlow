@@ -1,33 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  API_BASE_URL,
+  TOKEN_STORAGE_KEY,
+  getStoredToken,
+  setStoredToken,
+  removeStoredToken,
+  authApi,
+  apiRequest
+} from '../services/api';
 
 const AuthContext = createContext(null);
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-export const TOKEN_STORAGE_KEY = 'tutorflow_token';
+export { API_BASE_URL, TOKEN_STORAGE_KEY };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY));
+  const [token, setToken] = useState(() => getStoredToken());
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
   // Authenticated fetch helper
   const authFetch = useCallback(
     async (url, options = {}) => {
-      const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      };
-
-      const currentToken = token || localStorage.getItem(TOKEN_STORAGE_KEY);
-      if (currentToken) {
-        headers['Authorization'] = `Bearer ${currentToken}`;
-      }
-
-      return fetch(fullUrl, {
+      const currentToken = token || getStoredToken();
+      return apiRequest(url, {
         ...options,
-        headers
+        token: currentToken
       });
     },
     [token]
@@ -43,25 +41,20 @@ export function AuthProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${tokenToVerify}`
-        }
-      });
+      const { ok, data } = await authApi.getMe(tokenToVerify);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (ok) {
         setUser(data.user);
         setAuthError(null);
       } else {
         // Token invalid or expired
-        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        removeStoredToken();
         setToken(null);
         setUser(null);
       }
     } catch (err) {
       console.error('Session verification error:', err);
-      // Retain token in case of offline, but set error
+      // Retain token in case of network offline, but set error
       setAuthError('Could not verify session with server');
     } finally {
       setLoading(false);
@@ -78,17 +71,9 @@ export function AuthProvider({ children }) {
     setAuthError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-      });
+      const { ok, data } = await authApi.login(email, password);
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!ok) {
         const errorMsg = data.message || data.error || 'Invalid email or password';
         setAuthError(errorMsg);
         setLoading(false);
@@ -96,7 +81,7 @@ export function AuthProvider({ children }) {
       }
 
       // Success
-      localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+      setStoredToken(data.token);
       setToken(data.token);
       setUser(data.user);
       setLoading(false);
@@ -111,7 +96,7 @@ export function AuthProvider({ children }) {
 
   // Logout handler
   const logout = () => {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    removeStoredToken();
     setToken(null);
     setUser(null);
     setAuthError(null);

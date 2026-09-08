@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, UserPlus, BookOpen, Target, AlertTriangle, CheckCircle2, Plus, Sparkles } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { X, UserPlus, Target, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { studentApi } from '../../services/api';
 
 const PRESET_SUBJECTS = [
   'AP Calculus BC',
@@ -24,8 +24,6 @@ const PRESET_LEVELS = [
 ];
 
 export default function StudentCreateModal({ isOpen, onClose, onStudentCreated }) {
-  const { authFetch } = useAuth();
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -112,21 +110,16 @@ export default function StudentCreateModal({ isOpen, onClose, onStudentCreated }
     setSubmitting(true);
 
     try {
-      const response = await authFetch('/students', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          subject: formData.subject.trim(),
-          currentLevel: formData.currentLevel.trim(),
-          learningGoals,
-          weakAreas
-        })
+      const { ok, data } = await studentApi.create({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: formData.subject.trim(),
+        currentLevel: formData.currentLevel.trim(),
+        learningGoals,
+        weakAreas
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!ok) {
         throw new Error(data.message || data.error || 'Failed to create student profile.');
       }
 
