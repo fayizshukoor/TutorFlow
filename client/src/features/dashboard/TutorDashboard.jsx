@@ -1,21 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Calendar, Bot, Shield, ArrowRight, Lock } from 'lucide-react';
+import { Users, Calendar, Bot, Shield, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import StudentList from '../students/StudentList';
-import RoleTester from './RoleTester';
 
-export default function TutorDashboard({ onNavigateToTutorConsole }) {
+export default function TutorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-
-  const handleOpenConsole = () => {
-    if (onNavigateToTutorConsole) {
-      onNavigateToTutorConsole();
-    } else {
-      navigate('/tutor/console');
-    }
-  };
 
   return (
     <div className="dashboard-container">
@@ -31,7 +22,7 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
                 <Shield size={13} />
                 TUTOR ACCOUNT
               </span>
-              <span className="milestone-badge">Platform Live</span>
+              <span className="milestone-badge">Tutor Portal</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Alex'}</h1>
             <p className="dashboard-subtitle">
@@ -54,30 +45,6 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
             <span className="meta-val status-active">tutor (Full Access)</span>
           </div>
         </div>
-      </div>
-
-      {/* Quick Launch Console Card */}
-      <div className="rbac-notice-card tutor-console-cta">
-        <div className="rbac-notice-left">
-          <div className="rbac-notice-icon tutor">
-            <Lock size={20} />
-          </div>
-          <div>
-            <h4 className="rbac-notice-title">Tutor Management Console</h4>
-            <p className="rbac-notice-desc">
-              Access the protected tutor-only administration workspace and verify live backend role authorization.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={handleOpenConsole}
-          className="btn-test-rbac tutor"
-          title="Open Tutor Management Console"
-        >
-          <Lock size={15} />
-          <span>Launch Tutor Console</span>
-          <ArrowRight size={15} />
-        </button>
       </div>
 
       {/* Live Student Management Section */}
@@ -154,11 +121,6 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Interactive Auth & Role Verification Widget */}
-      <div className="dashboard-section">
-        <RoleTester />
       </div>
     </div>
   );

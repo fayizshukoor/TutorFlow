@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Lock, Users, Calendar } from 'lucide-react';
+import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Users, Calendar } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Navbar() {
@@ -65,19 +65,6 @@ export default function Navbar() {
             >
               <Calendar size={16} />
               <span>Sessions</span>
-            </NavLink>
-          )}
-
-          {/* Test Access Control button to easily demo student attempting tutor view */}
-          {isAuthenticated && (
-            <NavLink 
-              to="/tutor/console"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              title={user?.role === 'student' ? 'Click to test student accessing tutor-only route (Access Denied demo)' : 'Tutor Management Console'}
-            >
-              <Lock size={16} />
-              <span>Tutor Console</span>
-              {user?.role === 'student' && <span className="nav-pill-warning">Test 403</span>}
             </NavLink>
           )}
         </nav>

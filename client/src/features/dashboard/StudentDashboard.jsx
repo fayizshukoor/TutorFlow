@@ -6,7 +6,6 @@ import {
   Clock,
   Bot,
   Shield,
-  Lock,
   ArrowRight,
   Target,
   AlertTriangle,
@@ -19,9 +18,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { studentApi, sessionApi } from '../../services/api';
-import RoleTester from './RoleTester';
 
-export default function StudentDashboard({ onAttemptTutorPage }) {
+export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -60,14 +58,6 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
     loadData();
   }, [loadData]);
 
-  const handleAttemptTutor = () => {
-    if (onAttemptTutorPage) {
-      onAttemptTutorPage();
-    } else {
-      navigate('/tutor');
-    }
-  };
-
   const formatDateTime = (isoString) => {
     if (!isoString) return '';
     return new Date(isoString).toLocaleString('en-US', {
@@ -102,7 +92,7 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
                 <Shield size={13} />
                 STUDENT ACCOUNT
               </span>
-              <span className="milestone-badge">Active Enrollment</span>
+              <span className="milestone-badge">Student Portal</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Sam'}</h1>
             <p className="dashboard-subtitle">
@@ -129,31 +119,6 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
             <span className="meta-val status-student">student (Read-Only)</span>
           </div>
         </div>
-      </div>
-
-      {/* Access Control Demonstration Notice */}
-      <div className="rbac-notice-card">
-        <div className="rbac-notice-left">
-          <div className="rbac-notice-icon">
-            <Lock size={20} />
-          </div>
-          <div>
-            <h4 className="rbac-notice-title">Role-Based Access Guard Active</h4>
-            <p className="rbac-notice-desc">
-              As a student, you are restricted from tutor-only management pages and API endpoints. 
-              Click below to test the access denial safeguard.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={handleAttemptTutor}
-          className="btn-test-rbac"
-          title="Attempt to open Tutor Management Console"
-        >
-          <Lock size={15} />
-          <span>Attempt to Open Tutor Console</span>
-          <ArrowRight size={15} />
-        </button>
       </div>
 
       {/* My Tutoring Sessions (Upcoming & Completed) */}
@@ -389,11 +354,6 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
           </div>
         </div>
       )}
-
-      {/* Interactive Auth & Role Verification Widget */}
-      <div className="dashboard-section">
-        <RoleTester />
-      </div>
     </div>
   );
 }

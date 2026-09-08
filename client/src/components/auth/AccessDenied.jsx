@@ -37,7 +37,7 @@ export default function AccessDenied({ onBackToDashboard }) {
         <h1 className="access-denied-title">Access Denied</h1>
 
         <p className="access-denied-message">
-          You do not have permission to view or manage the <strong>Tutor Console</strong>.
+          You do not have permission to view or manage <strong>Tutor Administration Resources</strong>.
         </p>
 
         <div className="role-comparison-box">

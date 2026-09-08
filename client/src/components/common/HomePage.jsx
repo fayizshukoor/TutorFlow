@@ -161,7 +161,7 @@ export default function HomePage() {
             onClick={() => navigate(isAuthenticated ? dashboardPath : '/login')} 
             className="btn-banner-login"
           >
-            <span>{isAuthenticated ? 'Open Dashboard' : 'Test Sign In Flow'}</span>
+            <span>{isAuthenticated ? 'Open Dashboard' : 'Sign In to Get Started'}</span>
             <ArrowRight size={16} />
           </button>
         </div>

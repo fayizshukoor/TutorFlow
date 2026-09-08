@@ -253,8 +253,8 @@ export async function generateSessionReview(params) {
       try {
         rawText = await callGeminiApi(model, apiKey, prompt, 22000);
       } catch (callErr) {
-        // If timed out or unavailable, try next model
-        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503) {
+        // If timed out, rate limited, or unavailable, try next model
+        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503 || callErr.status === 429) {
           lastError = callErr;
           continue;
         }
@@ -454,7 +454,7 @@ export async function generateSessionPlan(params) {
       try {
         rawText = await callGeminiApi(model, apiKey, prompt, 22000);
       } catch (callErr) {
-        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503) {
+        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503 || callErr.status === 429) {
           lastError = callErr;
           continue;
         }
@@ -542,21 +542,19 @@ export async function generateSessionPlan(params) {
       };
     } catch (err) {
       lastError = err;
-      if (err.status === 429) {
-        const rateLimitErr = new Error('Gemini AI API rate limit reached. Please wait a moment and click Retry.');
-        rateLimitErr.statusCode = 429;
-        rateLimitErr.code = 'RATE_LIMIT_EXCEEDED';
-        throw rateLimitErr;
-      }
+      console.warn(`[geminiService] Model ${model} failed with ${err.message}. Checking next candidate model...`);
+      continue;
     }
   }
 
   const finalError = new Error(
     lastError?.statusCode === 504
       ? 'Gemini AI service timed out while synthesizing the lesson plan. Please click Retry to generate the plan.'
+      : lastError?.status === 429
+      ? 'Gemini AI API rate limit reached. Please wait a moment and click Retry.'
       : (lastError?.message || 'Gemini AI service was temporarily unable to generate the lesson plan. Please try again.')
   );
-  finalError.statusCode = lastError?.statusCode || 502;
+  finalError.statusCode = lastError?.statusCode || lastError?.status || 502;
   finalError.code = 'AI_SERVICE_UNAVAILABLE';
   throw finalError;
 }
@@ -682,7 +680,7 @@ export async function generateStudentProgressSummary(params) {
       try {
         rawText = await callGeminiApi(model, apiKey, prompt, 22000);
       } catch (callErr) {
-        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503) {
+        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503 || callErr.status === 429) {
           lastError = callErr;
           continue;
         }
@@ -734,21 +732,19 @@ export async function generateStudentProgressSummary(params) {
       };
     } catch (err) {
       lastError = err;
-      if (err.status === 429) {
-        const rateLimitErr = new Error('Gemini AI API rate limit reached. Please wait a moment and click Retry.');
-        rateLimitErr.statusCode = 429;
-        rateLimitErr.code = 'RATE_LIMIT_EXCEEDED';
-        throw rateLimitErr;
-      }
+      console.warn(`[geminiService] Progress summary on model ${model} failed with ${err.message}. Checking next candidate model...`);
+      continue;
     }
   }
 
   const finalError = new Error(
     lastError?.statusCode === 504
       ? 'Gemini AI service timed out while synthesizing the progress summary. Please click Retry to generate the summary.'
+      : lastError?.status === 429
+      ? 'Gemini AI API rate limit reached. Please wait a moment and click Retry.'
       : (lastError?.message || 'Gemini AI service was temporarily unable to generate the progress summary. Please try again.')
   );
-  finalError.statusCode = lastError?.statusCode || 502;
+  finalError.statusCode = lastError?.statusCode || lastError?.status || 502;
   finalError.code = 'AI_SERVICE_UNAVAILABLE';
   throw finalError;
 }
