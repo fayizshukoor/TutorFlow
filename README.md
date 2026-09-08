@@ -151,9 +151,49 @@ TutorFlow/
 | `GET` | `/api/sessions` | Tutor Only | List all sessions owned by tutor (sorted by scheduled date) | `{"success":true,"count":2,"sessions":[...]}` |
 | `POST` | `/api/sessions` | Tutor Only | Schedule a 1-on-1 session with collision clash detection | `{"success":true,"message":"...","session":{...}}` |
 | `GET` | `/api/sessions/my-sessions` | Student Only | Get authenticated student's own sessions | `{"success":true,"count":2,"sessions":[...]}` |
-| `GET` | `/api/sessions/:id` | Tutor / Student | Get session details & notes (ownership verified) | `{"success":true,"session":{...}}` |
+| `GET` | `/api/sessions/:id` | Tutor / Student | Get session details, notes, AI plan, & review (ownership verified) | `{"success":true,"session":{...}}` |
 | `PATCH` | `/api/sessions/:id/status` | Tutor Only | Update status (`scheduled` ➔ `in_progress` ➔ `completed`) | `{"success":true,"message":"...","session":{...}}` |
 | `PATCH` | `/api/sessions/:id/notes` | Tutor Only | Debounced autosave notes (only allowed when `in_progress`) | `{"success":true,"message":"...","session":{...}}` |
+| `POST` | `/api/sessions/:id/ai-plan` | Tutor Only | Generate Gemini pre-session lesson plan (4 steps & 3 questions) | `{"success":true,"aiPlan":{...}}` |
+| `POST` | `/api/sessions/:id/ai-review` | Tutor Only | Generate Gemini post-session review & homework assignment | `{"success":true,"session":{...}}` |
+| `PATCH` | `/api/sessions/:id/homework-progress` | Student Only | Track homework task completion timestamps | `{"success":true,"homeworkProgress":[...]}` |
+
+---
+
+## 🤖 Gemini AI Features
+
+TutorFlow incorporates Google Gemini AI across the tutoring lifecycle:
+
+### 1. Pre-Session AI Lesson Planning (`POST /api/sessions/:id/ai-plan`)
+- **When**: Before class starts (`scheduled` or `in_progress` sessions).
+- **Prompt Context**: Ingests student learning goals, weak areas, current topic, and previous lesson review summaries.
+- **Output Structure**:
+  ```json
+  {
+    "learningObjectives": ["Objective 1", "Objective 2"],
+    "lessonOutline": [
+      "1. Warm-Up & Diagnostic Review: ...",
+      "2. Core Concept Walkthrough: ...",
+      "3. Scaffolded Practice: ...",
+      "4. Synthesis & Wrap-Up: ..."
+    ],
+    "practiceQuestions": [
+      "Question 1 (Foundational): ...",
+      "Question 2 (Standard): ...",
+      "Question 3 (Synthesis/Challenge): ..."
+    ]
+  }
+  ```
+- **UI Integration**: Accessible via "Generate AI Study Plan" in student profile and directly inside the session workspace (read-only for students).
+
+### 2. Post-Session AI Review & Homework (`POST /api/sessions/:id/ai-review`)
+- **When**: After session completion (`completed` ➔ `ai_reviewed`).
+- **Prompt Context**: Live notes recorded during session, student subject, grade level, and weak areas.
+- **Output Structure**: Executive summary, covered topics, student strengths, areas for improvement, recommended next steps, and customized homework assignments.
+
+### 3. Persistent Homework Progress (`PATCH /api/sessions/:id/homework-progress`)
+- **When**: As students complete homework tasks.
+- **Rules**: Assigned student only, records `completedAt` timestamps, updates real-time progress bars and tutor read-only summary badges.
 
 ---
 
@@ -248,22 +288,29 @@ TutorFlow/
 
 ## 📋 Milestones Roadmap
 
-1. ✅ **Milestone 1: Project Setup & Health Check**: Vite + React frontend, Express backend, live health check.
-2. ✅ **Milestone 2: JWT Authentication & Role-Based Access**: User Mongoose model, bcryptjs hashing, JWT bearer tokens, role middleware (`tutor` vs `student`), idempotent seeding, login page, role dashboards, and 403 access denial guards.
+1. ✅ **Milestone 1: Project Setup & Health Check**: Vite + React frontend, Express backend, unified design system tokens, and `/api/health` monitoring endpoint.
+2. ✅ **Milestone 2: JWT Authentication & Role-Based Access Control**: User Mongoose model, `bcryptjs` password hashing, JWT bearer tokens, role middleware (`tutor` vs `student`), idempotent database seeding, login interface with demo quick-fill, role dashboards, and 403 access denial guards.
 3. ✅ **Milestone 3: Student Management & Profiles**: Student Mongoose model with `userId` and `tutorId` relations, tutor-only CRUD endpoints with server-side ownership gating, seeded profile, interactive student roster with search & stats, creation modal with dynamic tag editors, and student profile view/edit mode.
-4. ✅ **Milestone 4: Session Lifecycle State Machine**: Session Mongoose model, tutor scheduling with double-booking collision prevention, strict server-side state transitions (`scheduled` ➔ `in_progress` ➔ `completed`), live notes editor with debounced autosaving and read-only lockdown on completion, student session timeline and notes viewer.
-5. ✅ **Milestone 5: Gemini-Powered Lesson Summaries & Homework**: Secure server-side Gemini integration (`gemini-3.6-flash`), structured post-session AI reviews (`POST /api/sessions/:id/ai-review`), automated synthesis of executive summaries, student strengths, areas for improvement, next steps, and personalized homework assignments with interactive task checklists.
-6. ⏳ **Milestone 6: Deployments**: Vercel (Frontend) & Render (Backend).
+4. ✅ **Milestone 4: Session Lifecycle State Machine & Notes**: Session Mongoose model, tutor scheduling with double-booking collision prevention, strict server-side state transitions (`scheduled` ➔ `in_progress` ➔ `completed`), live notes editor with debounced autosaving and read-only lockdown on completion, student session timeline and notes viewer.
+5. ✅ **Milestone 5: Gemini-Powered Lesson Planning, Reviews & Homework Tracking**:
+   - **Pre-Session AI Lesson Plans**: `POST /api/sessions/:id/ai-plan` synthesizing tailored learning objectives, a 4-point structured lesson outline, and 3 concept-targeted practice questions.
+   - **Post-Session AI Reviews & Homework**: `POST /api/sessions/:id/ai-review` extracting executive summaries, key topics covered, student strengths, areas for improvement, and homework assignments.
+   - **Database-Backed Persistent Homework Tracking**: `PATCH /api/sessions/:id/homework-progress` allowing students to toggle task completion with `completedAt` timestamps and live progress visualization for tutors.
+   - **Resilience & Fallback**: Multi-model Gemini fallback, strict 22s request timeouts, unescaped backslash/LaTeX sanitization, and compact JSON extraction.
+6. ✅ **Milestone 6: Cloud Deployments & Production Live**:
+   - Frontend deployed and live on **Vercel** (`https://tutor-flow-xn2k.vercel.app`).
+   - Backend API deployed and live on **Render** (`https://tutorflow-i8gb.onrender.com`).
+   - Production **MongoDB Atlas** database cluster connected with live environment configurations.
 
 ---
 
-## 🤖 Gemini AI Configuration (`server/.env`)
+## 🔒 Gemini AI Configuration (`server/.env`)
 
-The AI review service requires `GEMINI_API_KEY` configured strictly on the backend (and in Render environment variables):
+The AI service requires `GEMINI_API_KEY` configured strictly on the backend (and in Render environment variables):
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-# Optional custom model override (defaults to gemini-3.6-flash):
+# Optional custom model override (defaults to multi-model fallback: gemini-3.7-flash -> gemini-3.6-flash -> gemini-3.5-flash):
 GEMINI_MODEL=gemini-3.6-flash
 ```
 

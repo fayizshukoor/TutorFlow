@@ -89,7 +89,7 @@ export default function StudentList({ isCompact = false }) {
               <Users size={13} />
               STUDENT ROSTER
             </span>
-            <span className="milestone-badge">Milestone 3 Live</span>
+            <span className="milestone-badge">Roster Active</span>
           </div>
           <h2 className="roster-title">Enrolled Students & Profiles</h2>
           <p className="roster-subtitle">

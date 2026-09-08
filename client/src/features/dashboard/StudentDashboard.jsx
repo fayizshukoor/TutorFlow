@@ -102,7 +102,7 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
                 <Shield size={13} />
                 STUDENT ACCOUNT
               </span>
-              <span className="milestone-badge">Milestone 4 Verified</span>
+              <span className="milestone-badge">Active Enrollment</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Sam'}</h1>
             <p className="dashboard-subtitle">
@@ -156,14 +156,14 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
         </button>
       </div>
 
-      {/* Milestone 4: My Tutoring Sessions (Upcoming & Completed) */}
+      {/* My Tutoring Sessions (Upcoming & Completed) */}
       <div className="dashboard-section">
         <div className="roster-header-row">
           <div>
             <div className="roster-pill-row">
               <span className="badge-subject">
                 <Calendar size={13} />
-                Milestone 4 Live
+                Sessions & AI Homework
               </span>
             </div>
             <h2 className="section-title" style={{ marginBottom: 0 }}>My Tutoring Sessions</h2>

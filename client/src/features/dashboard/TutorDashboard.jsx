@@ -31,7 +31,7 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
                 <Shield size={13} />
                 TUTOR ACCOUNT
               </span>
-              <span className="milestone-badge">Milestone 3 Active</span>
+              <span className="milestone-badge">Platform Live</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Alex'}</h1>
             <p className="dashboard-subtitle">
@@ -80,14 +80,14 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
         </button>
       </div>
 
-      {/* Milestone 3: Live Student Management Section */}
+      {/* Live Student Management Section */}
       <div className="dashboard-section">
         <StudentList isCompact={false} />
       </div>
 
-      {/* Feature / Milestone Roadmap Grid */}
+      {/* Core Platform Capabilities Grid */}
       <div className="dashboard-section">
-        <h2 className="section-title">Platform Capabilities & Upcoming Milestones</h2>
+        <h2 className="section-title">Core Platform Capabilities</h2>
         <div className="preview-grid">
           <div className="preview-card live-card">
             <div className="preview-card-header">
@@ -95,7 +95,7 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
                 <Users size={20} />
               </div>
               <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
-                Milestone 3 Live
+                Active
               </span>
             </div>
             <h3 className="preview-card-title">Student Management</h3>
@@ -110,7 +110,7 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
                 <Calendar size={20} />
               </div>
               <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
-                Milestone 4 Live
+                Active
               </span>
             </div>
             <h3 className="preview-card-title">1-on-1 Sessions & Live Notes</h3>
@@ -129,17 +129,29 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
             </div>
           </div>
 
-          <div className="preview-card">
+          <div className="preview-card live-card">
             <div className="preview-card-header">
-              <div className="preview-icon-box">
+              <div className="preview-icon-box" style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#C084FC' }}>
                 <Bot size={20} />
               </div>
-              <span className="preview-tag-next">Milestone 5</span>
+              <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
+                Active
+              </span>
             </div>
-            <h3 className="preview-card-title">Gemini AI Lesson Plans</h3>
+            <h3 className="preview-card-title">Gemini AI Plans & Reviews</h3>
             <p className="preview-card-desc">
-              AI-generated lesson plans and post-session homework reviews synthesized from live session notes.
+              Pre-session 4-point AI lesson plans, practice questions, post-session summaries, and interactive homework tracking.
             </p>
+            <div style={{ marginTop: '0.75rem' }}>
+              <button
+                onClick={() => navigate('/tutor/sessions')}
+                className="btn-workspace-link"
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                <span>Generate AI Content</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
         </div>
       </div>

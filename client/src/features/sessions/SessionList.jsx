@@ -149,7 +149,7 @@ export default function SessionList() {
               <Calendar size={13} />
               1-on-1 Sessions
             </span>
-            <span className="badge-level">Milestone 4 Live</span>
+            <span className="badge-level">Active Schedule</span>
           </div>
           <h1 className="sessions-title">Session Scheduling & Lifecycle</h1>
           <p className="sessions-subtitle">

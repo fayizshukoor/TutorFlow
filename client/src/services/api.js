@@ -197,6 +197,14 @@ export const sessionApi = {
     });
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
+  },
+
+  generateAiPlan: async (id) => {
+    const res = await apiRequest(`/sessions/${id}/ai-plan`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
   }
 };
 

@@ -59,6 +59,28 @@ const sessionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null
     },
+    aiPlan: {
+      learningObjectives: {
+        type: [String],
+        default: []
+      },
+      lessonOutline: {
+        type: [String],
+        default: []
+      },
+      practiceQuestions: {
+        type: [String],
+        default: []
+      },
+      generatedAt: {
+        type: Date,
+        default: null
+      },
+      modelUsed: {
+        type: String,
+        default: null
+      }
+    },
     homeworkProgress: [
       {
         taskIndex: {

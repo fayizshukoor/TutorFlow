@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "seed": "node src/scripts/seed.js"
+    "seed": "node src/scripts/seed.js",
+    "test:milestone5": "node src/scripts/test-milestone5.js",
+    "test:ai-plan": "node src/scripts/test-ai-plan.js"
   },
   "keywords": [
     "tutorflow",

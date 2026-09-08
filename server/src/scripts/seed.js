@@ -115,11 +115,30 @@ export async function seedUsers() {
         scheduledAt: upcomingScheduledAt,
         durationMinutes: 60,
         status: 'scheduled',
-        notes: ''
+        notes: '',
+        aiPlan: {
+          learningObjectives: [
+            'Master the Ratio Test to determine the radius and interval of convergence for power series.',
+            'Construct Taylor series centered at x = a and Maclaurin series for standard elementary functions (e^x, sin(x), cos(x), 1/(1-x)).'
+          ],
+          lessonOutline: [
+            '1. Warm-Up & Diagnostic (10m): Review geometric series convergence conditions and nth-term divergence test.',
+            '2. Core Concept Walkthrough (20m): Derive general Taylor formula f^(n)(a)/n!*(x-a)^n and solve radius of convergence.',
+            '3. Scaffolded Practice (20m): Work through 3 AP FRQ-style convergence interval problems checking endpoint convergence.',
+            '4. Synthesis & Wrap-Up (10m): Exit check problem on Maclaurin expansion of e^(-x^2) and preview of homework.'
+          ],
+          practiceQuestions: [
+            'Find the radius and interval of convergence for the power series summation n=1 to infinity of ((-1)^n * (x - 2)^n) / (n * 3^n).',
+            'Write the first four non-zero terms of the Taylor series for f(x) = ln(x) centered at x = 1.',
+            'Use the known Maclaurin series for cos(x) to write the series for cos(x^2), and find the sixth derivative f^(6)(0).'
+          ],
+          generatedAt: new Date(now - 12 * 60 * 60 * 1000),
+          modelUsed: 'gemini-3.6-flash'
+        }
       },
       { upsert: true, new: true, runValidators: true }
     );
-    console.log(`✅ Upcoming session seeded: ${upcomingSession.topic} (${upcomingSession.status}) on ${upcomingSession.scheduledAt.toISOString()}`);
+    console.log(`✅ Upcoming session seeded: ${upcomingSession.topic} (${upcomingSession.status}) with AI Plan on ${upcomingSession.scheduledAt.toISOString()}`);
 
     // Seed/Upsert Completed Session (Ready for live AI generation)
     let completedSession = await Session.findOneAndUpdate(

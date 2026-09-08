@@ -16,14 +16,19 @@ import {
   RefreshCw,
   ShieldCheck,
   CheckCircle2,
-  Clock
+  Clock,
+  ArrowRight,
+  ListChecks,
+  HelpCircle
 } from 'lucide-react';
-import { studentApi } from '../../services/api';
+import { studentApi, sessionApi } from '../../services/api';
+import SessionScheduleModal from '../sessions/SessionScheduleModal';
 
 export default function StudentProfile() {
   const { id } = useParams();
 
   const [student, setStudent] = useState(null);
+  const [studentSessions, setStudentSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -43,25 +48,39 @@ export default function StudentProfile() {
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(null);
 
+  // AI Plan modal state
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [planGenerating, setPlanGenerating] = useState(false);
+  const [planError, setPlanError] = useState(null);
+  const [activePlanSession, setActivePlanSession] = useState(null);
+
   const fetchStudent = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { ok, data } = await studentApi.getById(id);
+      const [profileRes, sessionsRes] = await Promise.all([
+        studentApi.getById(id),
+        sessionApi.getAll({ studentId: id })
+      ]);
 
-      if (!ok) {
-        throw new Error(data.message || data.error || 'Could not load student profile.');
+      if (!profileRes.ok) {
+        throw new Error(profileRes.data?.message || profileRes.data?.error || 'Could not load student profile.');
       }
 
-      setStudent(data.student);
+      setStudent(profileRes.data.student);
+      if (sessionsRes.ok) {
+        setStudentSessions(sessionsRes.data.sessions || []);
+      }
+
       setEditFormData({
-        name: data.student.name || '',
-        email: data.student.email || '',
-        subject: data.student.subject || '',
-        currentLevel: data.student.currentLevel || ''
+        name: profileRes.data.student.name || '',
+        email: profileRes.data.student.email || '',
+        subject: profileRes.data.student.subject || '',
+        currentLevel: profileRes.data.student.currentLevel || ''
       });
-      setEditGoals(data.student.learningGoals || []);
-      setEditWeakAreas(data.student.weakAreas || []);
+      setEditGoals(profileRes.data.student.learningGoals || []);
+      setEditWeakAreas(profileRes.data.student.weakAreas || []);
     } catch (err) {
       console.error('Fetch student error:', err);
       setError(err.message || 'Failed to retrieve student profile.');
@@ -73,6 +92,47 @@ export default function StudentProfile() {
   useEffect(() => {
     fetchStudent();
   }, [fetchStudent]);
+
+  // AI Plan generation handler
+  const handleTriggerAiPlan = async (targetSession = null) => {
+    setPlanError(null);
+    const sessionToUse = targetSession || studentSessions.find(
+      (s) => s.status === 'scheduled' || s.status === 'in_progress'
+    );
+
+    if (!sessionToUse) {
+      setActivePlanSession(null);
+      setPlanModalOpen(true);
+      return;
+    }
+
+    setActivePlanSession(sessionToUse);
+    setPlanModalOpen(true);
+
+    if (!sessionToUse.aiPlan?.lessonOutline?.length) {
+      await generatePlanForSession(sessionToUse.id || sessionToUse._id);
+    }
+  };
+
+  const generatePlanForSession = async (sessionId) => {
+    setPlanGenerating(true);
+    setPlanError(null);
+    try {
+      const { ok, data } = await sessionApi.generateAiPlan(sessionId);
+      if (!ok) {
+        throw new Error(data.message || data.error || 'Failed to generate AI session plan.');
+      }
+      setActivePlanSession(data.session);
+      setStudentSessions((prev) =>
+        prev.map((s) => ((s.id || s._id) === sessionId ? data.session : s))
+      );
+    } catch (err) {
+      console.error('AI Plan generation error:', err);
+      setPlanError(err.message || 'AI Plan generation failed. Please click Retry.');
+    } finally {
+      setPlanGenerating(false);
+    }
+  };
 
   // Handle Edit input changes
   const handleEditChange = (e) => {
@@ -637,9 +697,9 @@ export default function StudentProfile() {
             </div>
           </div>
 
-          {/* Right Column: Milestone Previews & Quick Actions */}
+          {/* Right Column: Quick Actions & AI Planner */}
           <div className="profile-side-col">
-            {/* Quick Session Launcher (Milestone 4 Preview) */}
+            {/* Quick Session Launcher */}
             <div className="profile-side-card">
               <div className="side-card-header">
                 <div className="side-card-icon">
@@ -647,22 +707,23 @@ export default function StudentProfile() {
                 </div>
                 <div>
                   <h4 className="side-card-title">1-on-1 Sessions</h4>
-                  <span className="milestone-subtag">Milestone 4 Feature</span>
+                  <span className="milestone-subtag">Live Feature</span>
                 </div>
               </div>
               <p className="side-card-desc">
                 Schedule live 1-on-1 tutoring sessions with conflict detection and automated session lifecycle tracking.
               </p>
               <button
+                onClick={() => setScheduleModalOpen(true)}
                 className="btn-side-action"
-                title="Schedule session with this student (Available in Milestone 4)"
+                title="Schedule session with this student"
               >
                 <Calendar size={15} />
                 <span>Schedule New Session</span>
               </button>
             </div>
 
-            {/* Gemini AI Lesson Planner (Milestone 5 Preview) */}
+            {/* Gemini AI Lesson Planner */}
             <div className="profile-side-card ai-accent">
               <div className="side-card-header">
                 <div className="side-card-icon ai">
@@ -670,18 +731,227 @@ export default function StudentProfile() {
                 </div>
                 <div>
                   <h4 className="side-card-title">Gemini AI Lesson Plan</h4>
-                  <span className="milestone-subtag ai">Milestone 5 Feature</span>
+                  <span className="milestone-subtag ai">Pre-Session Planner</span>
                 </div>
               </div>
               <p className="side-card-desc">
-                Synthesize customized lesson plans and review quizzes tailored to {student.name}'s weak areas: <em>{student.weakAreas?.[0] || 'Target Topics'}</em>.
+                Synthesize a tailored 4-point lesson plan and 3 practice problems targeting {student.name}'s focus area: <em>{student.weakAreas?.[0] || 'Target Topics'}</em>.
               </p>
               <button
+                onClick={() => handleTriggerAiPlan()}
                 className="btn-side-action ai"
-                title="Generate AI Lesson Plan (Available in Milestone 5)"
+                title="Generate or view AI Lesson Plan"
               >
                 <Sparkles size={15} />
                 <span>Generate AI Study Plan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Session Modal */}
+      {scheduleModalOpen && (
+        <SessionScheduleModal
+          isOpen={scheduleModalOpen}
+          onClose={() => setScheduleModalOpen(false)}
+          defaultStudentId={student?._id || student?.id}
+          onSessionCreated={(newSession) => {
+            setStudentSessions((prev) => [newSession, ...prev]);
+            setScheduleModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* AI Session Plan Modal */}
+      {planModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-container ai-plan-modal" style={{ maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto' }}>
+            {/* Modal Header */}
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <div className="modal-icon-badge" style={{ background: 'linear-gradient(135deg, #6366F1, #A855F7)' }}>
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <h3 className="modal-title">Gemini AI Pre-Session Lesson Plan</h3>
+                  <p className="modal-subtitle">
+                    {activePlanSession
+                      ? `Lesson: ${activePlanSession.topic} (${student?.name})`
+                      : `Targeted Study Strategy for ${student?.name}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPlanModalOpen(false)}
+                className="btn-modal-close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="modal-body-content" style={{ padding: '1.25rem 0' }}>
+              {/* If no scheduled session exists */}
+              {!activePlanSession && (
+                <div className="ai-plan-empty-box" style={{ textAlign: 'center', padding: '2rem 1.5rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '14px', border: '1px dashed rgba(99, 102, 241, 0.3)' }}>
+                  <Calendar size={36} style={{ color: '#818CF8', margin: '0 auto 1rem auto' }} />
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                    No Scheduled Session Found
+                  </h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '440px', margin: '0 auto 1.5rem auto', lineHeight: 1.5 }}>
+                    To generate a personalized, curriculum-aligned lesson plan, please schedule an upcoming 1-on-1 tutoring session with {student?.name} first.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setPlanModalOpen(false);
+                      setScheduleModalOpen(true);
+                    }}
+                    className="btn-primary-schedule"
+                    style={{ margin: '0 auto' }}
+                  >
+                    <Calendar size={15} />
+                    <span>Schedule Session Now</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Generating in-progress indicator */}
+              {planGenerating && (
+                <div className="ai-generating-container" style={{ margin: '1rem 0' }}>
+                  <div className="spinner-large" />
+                  <p className="ai-generating-text">Synthesizing Pedagogical Plan with Gemini AI...</p>
+                  <p className="ai-generating-hint">
+                    Analyzing {student?.name}'s learning goals, weak areas ({student?.weakAreas?.join(', ') || 'None'}), and past lesson reviews to build a customized 4-step outline and 3 practice problems.
+                  </p>
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {planError && (
+                <div className="form-alert error" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.875rem' }}>{planError}</span>
+                  </div>
+                  {activePlanSession && (
+                    <button
+                      onClick={() => generatePlanForSession(activePlanSession.id || activePlanSession._id)}
+                      className="btn-secondary"
+                      disabled={planGenerating}
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                    >
+                      <RefreshCw size={12} className={planGenerating ? 'spin' : ''} />
+                      <span>Retry</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Render Plan Details */}
+              {!planGenerating && activePlanSession?.aiPlan?.lessonOutline?.length > 0 && (
+                <div className="ai-plan-details-wrap">
+                  {/* Meta Bar */}
+                  <div className="ai-plan-meta-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="ai-model-tag">
+                        <Sparkles size={12} /> {activePlanSession.aiPlan.modelUsed || 'Gemini Flash'}
+                      </span>
+                      {activePlanSession.aiPlan.generatedAt && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Generated {new Date(activePlanSession.aiPlan.generatedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => generatePlanForSession(activePlanSession.id || activePlanSession._id)}
+                      className="btn-ai-regenerate"
+                      disabled={planGenerating}
+                      title="Regenerate Plan with Gemini"
+                    >
+                      <RefreshCw size={12} className={planGenerating ? 'spin' : ''} />
+                      <span>Regenerate Plan</span>
+                    </button>
+                  </div>
+
+                  {/* 1. Learning Objectives */}
+                  <div className="ai-plan-section" style={{ marginBottom: '1.25rem' }}>
+                    <h4 className="ai-col-heading" style={{ color: '#38BDF8', fontSize: '0.95rem', marginBottom: '0.6rem' }}>
+                      <Target size={16} />
+                      <span>Target Learning Objectives ({activePlanSession.aiPlan.learningObjectives?.length || 0})</span>
+                    </h4>
+                    <div className="goals-list" style={{ gap: '0.45rem' }}>
+                      {activePlanSession.aiPlan.learningObjectives?.map((obj, idx) => (
+                        <div key={idx} className="goal-item" style={{ padding: '0.55rem 0.85rem', fontSize: '0.85rem' }}>
+                          <div className="goal-icon-bullet">
+                            <Check size={11} />
+                          </div>
+                          <span>{obj}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Exactly 4-Step Lesson Outline */}
+                  <div className="ai-plan-section" style={{ marginBottom: '1.25rem' }}>
+                    <h4 className="ai-col-heading" style={{ color: '#C084FC', fontSize: '0.95rem', marginBottom: '0.6rem' }}>
+                      <ListChecks size={16} />
+                      <span>Structured 4-Point Lesson Outline</span>
+                    </h4>
+                    <div className="ai-outline-timeline" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {activePlanSession.aiPlan.lessonOutline?.map((step, idx) => (
+                        <div key={idx} className="ai-outline-step-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(15, 23, 42, 0.45)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+                          <div className="ai-outline-step-badge" style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366F1, #A855F7)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, flexShrink: 0, marginTop: '2px' }}>
+                            {idx + 1}
+                          </div>
+                          <div style={{ flex: 1, fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                            {step}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Exactly 3 Practice Questions */}
+                  <div className="ai-plan-section" style={{ marginBottom: '1.25rem' }}>
+                    <h4 className="ai-col-heading" style={{ color: '#FBBF24', fontSize: '0.95rem', marginBottom: '0.6rem' }}>
+                      <HelpCircle size={16} />
+                      <span>Targeted Practice Questions (3)</span>
+                    </h4>
+                    <div className="ai-questions-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {activePlanSession.aiPlan.practiceQuestions?.map((q, idx) => (
+                        <div key={idx} className="ai-question-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '10px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#FBBF24', background: 'rgba(245, 158, 11, 0.18)', padding: '0.2rem 0.5rem', borderRadius: '6px', flexShrink: 0 }}>
+                            Q{idx + 1}
+                          </span>
+                          <span style={{ flex: 1, fontSize: '0.875rem', color: '#FEF3C7', lineHeight: 1.5 }}>
+                            {q}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              {activePlanSession && (
+                <Link
+                  to={`/tutor/sessions/${activePlanSession.id || activePlanSession._id}`}
+                  className="btn-primary-auth"
+                  style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                >
+                  <ArrowRight size={15} />
+                  <span>Open Session Workspace</span>
+                </Link>
+              )}
+              <button
+                onClick={() => setPlanModalOpen(false)}
+                className="btn-secondary"
+              >
+                Close
               </button>
             </div>
           </div>

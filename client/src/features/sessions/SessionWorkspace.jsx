@@ -20,7 +20,9 @@ import {
   CheckSquare,
   Square,
   ArrowRight,
-  GraduationCap
+  GraduationCap,
+  ListChecks,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { sessionApi } from '../../services/api';
@@ -42,12 +44,17 @@ export default function SessionWorkspace() {
   const debounceTimerRef = useRef(null);
   const lastSavedNotesRef = useRef('');
 
-  // AI Review state
+  // AI Review & Homework state
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiSuccessMessage, setAiSuccessMessage] = useState(null);
   const [savingTaskIdx, setSavingTaskIdx] = useState(null);
   const [homeworkError, setHomeworkError] = useState(null);
+
+  // AI Plan state
+  const [aiPlanGenerating, setAiPlanGenerating] = useState(false);
+  const [aiPlanError, setAiPlanError] = useState(null);
+  const [aiPlanSuccessMessage, setAiPlanSuccessMessage] = useState(null);
 
   const fetchSession = useCallback(async () => {
     setLoading(true);
@@ -170,6 +177,28 @@ export default function SessionWorkspace() {
       setAiError(err.message || 'Gemini AI review generation timed out or encountered an issue. Please click Retry to try again.');
     } finally {
       setAiGenerating(false);
+    }
+  };
+
+  // Handle Gemini AI Pre-Session Plan Generation
+  const handleGenerateAiPlan = async () => {
+    if (!isTutor) return;
+    setAiPlanGenerating(true);
+    setAiPlanError(null);
+    setAiPlanSuccessMessage(null);
+    try {
+      const { ok, data } = await sessionApi.generateAiPlan(id);
+      if (!ok) {
+        throw new Error(data.message || data.error || 'Gemini AI was temporarily unable to generate the session plan.');
+      }
+      setSession(data.session);
+      setAiPlanSuccessMessage('Gemini AI pre-session plan generated successfully!');
+      setTimeout(() => setAiPlanSuccessMessage(null), 5000);
+    } catch (err) {
+      console.error('Generate AI plan error:', err);
+      setAiPlanError(err.message || 'AI plan generation timed out or encountered an issue. Please click Retry.');
+    } finally {
+      setAiPlanGenerating(false);
     }
   };
 
@@ -339,26 +368,51 @@ export default function SessionWorkspace() {
         {isTutor && (
           <div className="workspace-actions-group">
             {session.status === 'scheduled' && (
-              <button
-                onClick={() => handleStatusChange('in_progress')}
-                className="btn-primary-schedule"
-                disabled={statusActionLoading}
-              >
-                <Play size={16} />
-                <span>{statusActionLoading ? 'Starting...' : 'Start Live Session'}</span>
-              </button>
+              <>
+                <button
+                  onClick={handleGenerateAiPlan}
+                  className="btn-ai-generate"
+                  style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', padding: '0.65rem 1.1rem', fontSize: '0.85rem' }}
+                  disabled={aiPlanGenerating}
+                  title="Generate pre-session lesson plan with Gemini"
+                >
+                  <Sparkles size={15} />
+                  <span>{session.aiPlan?.lessonOutline?.length > 0 ? 'Regenerate AI Plan' : 'Generate AI Plan'}</span>
+                </button>
+                <button
+                  onClick={() => handleStatusChange('in_progress')}
+                  className="btn-primary-schedule"
+                  disabled={statusActionLoading}
+                >
+                  <Play size={16} />
+                  <span>{statusActionLoading ? 'Starting...' : 'Start Live Session'}</span>
+                </button>
+              </>
             )}
 
             {session.status === 'in_progress' && (
-              <button
-                onClick={() => handleStatusChange('completed')}
-                className="btn-primary-enroll"
-                style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
-                disabled={statusActionLoading}
-              >
-                <CheckCircle2 size={16} />
-                <span>{statusActionLoading ? 'Finalizing...' : 'Complete Session'}</span>
-              </button>
+              <>
+                {!session.aiPlan?.lessonOutline?.length && (
+                  <button
+                    onClick={handleGenerateAiPlan}
+                    className="btn-secondary"
+                    style={{ padding: '0.65rem 1rem', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    disabled={aiPlanGenerating}
+                  >
+                    <Sparkles size={14} className="text-accent" />
+                    <span>{aiPlanGenerating ? 'Planning...' : 'Generate AI Plan'}</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => handleStatusChange('completed')}
+                  className="btn-primary-enroll"
+                  style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
+                  disabled={statusActionLoading}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{statusActionLoading ? 'Finalizing...' : 'Complete Session'}</span>
+                </button>
+              </>
             )}
 
             {session.status === 'completed' && (
@@ -391,10 +445,37 @@ export default function SessionWorkspace() {
       </div>
 
       {/* AI Success / Error Alerts */}
+      {aiPlanSuccessMessage && (
+        <div className="form-alert" style={{ background: 'rgba(99, 102, 241, 0.12)', borderColor: 'rgba(99, 102, 241, 0.3)', color: '#A5B4FC', marginBottom: '1.5rem' }}>
+          <CheckCircle2 size={16} />
+          <span>{aiPlanSuccessMessage}</span>
+        </div>
+      )}
+
       {aiSuccessMessage && (
         <div className="form-alert" style={{ background: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)', color: '#6EE7B7', marginBottom: '1.5rem' }}>
           <CheckCircle2 size={16} />
           <span>{aiSuccessMessage}</span>
+        </div>
+      )}
+
+      {aiPlanError && (
+        <div className="form-alert error" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '0.875rem' }}>{aiPlanError}</span>
+          </div>
+          {isTutor && (
+            <button
+              onClick={handleGenerateAiPlan}
+              className="btn-secondary"
+              disabled={aiPlanGenerating}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+            >
+              <RefreshCw size={13} className={aiPlanGenerating ? 'spin' : ''} />
+              <span>Retry Plan</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -418,7 +499,18 @@ export default function SessionWorkspace() {
         </div>
       )}
 
-      {/* AI Generating In-Progress State */}
+      {/* AI Plan Generating In-Progress State */}
+      {aiPlanGenerating && (
+        <div className="ai-generating-container" style={{ marginBottom: '1.75rem' }}>
+          <div className="spinner-large" />
+          <p className="ai-generating-text">Synthesizing Pedagogical Plan with Gemini AI...</p>
+          <p className="ai-generating-hint">
+            Analyzing student learning goals, weak areas, and past lesson reviews to build a structured 4-step outline and 3 practice problems.
+          </p>
+        </div>
+      )}
+
+      {/* AI Review Generating In-Progress State */}
       {aiGenerating && (
         <div className="ai-generating-container" style={{ marginBottom: '1.75rem' }}>
           <div className="spinner-large" />
@@ -426,6 +518,115 @@ export default function SessionWorkspace() {
           <p className="ai-generating-hint">
             Analyzing session topic, whiteboard notes, and student learning goals to generate structured feedback and custom homework.
           </p>
+        </div>
+      )}
+
+      {/* Gemini AI Pre-Session Lesson Plan Card */}
+      {session.aiPlan?.lessonOutline?.length > 0 && (
+        <div className="ai-plan-workspace-card">
+          <div className="ai-review-header">
+            <div className="ai-header-left">
+              <div className="ai-sparkle-icon-wrap plan">
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <h3 className="ai-header-title">Gemini AI Pre-Session Lesson Plan</h3>
+                <p className="ai-header-subtitle">
+                  {isStudent
+                    ? 'Structured lesson objectives, outline, and practice questions for this session'
+                    : 'Personalized 4-point outline and practice problems tailored to student focus areas'}
+                </p>
+              </div>
+            </div>
+
+            <div className="ai-meta-pills">
+              {session.aiPlan?.modelUsed && (
+                <span className="ai-model-tag">
+                  <Sparkles size={12} /> {session.aiPlan.modelUsed}
+                </span>
+              )}
+              {session.aiPlan?.generatedAt && (
+                <span className="form-hint" style={{ fontSize: '0.75rem' }}>
+                  Planned {new Date(session.aiPlan.generatedAt).toLocaleDateString()}
+                </span>
+              )}
+              {isTutor && (session.status === 'scheduled' || session.status === 'in_progress') && (
+                <button
+                  onClick={handleGenerateAiPlan}
+                  className="btn-ai-regenerate"
+                  disabled={aiPlanGenerating}
+                  title="Regenerate Plan with Gemini"
+                >
+                  <RefreshCw size={12} className={aiPlanGenerating ? 'spin' : ''} />
+                  <span>Regenerate Plan</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="ai-plan-workspace-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* 1. Learning Objectives */}
+            {session.aiPlan.learningObjectives?.length > 0 && (
+              <div className="ai-plan-section">
+                <h4 className="ai-col-heading" style={{ color: '#38BDF8', fontSize: '0.95rem' }}>
+                  <Target size={16} />
+                  <span>Learning Objectives ({session.aiPlan.learningObjectives.length})</span>
+                </h4>
+                <div className="goals-list" style={{ gap: '0.45rem', marginTop: '0.5rem' }}>
+                  {session.aiPlan.learningObjectives.map((obj, idx) => (
+                    <div key={idx} className="goal-item" style={{ padding: '0.55rem 0.85rem', fontSize: '0.85rem' }}>
+                      <div className="goal-icon-bullet">
+                        <Check size={11} />
+                      </div>
+                      <span>{obj}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Structured 4-Point Outline */}
+            <div className="ai-plan-section">
+              <h4 className="ai-col-heading" style={{ color: '#C084FC', fontSize: '0.95rem' }}>
+                <ListChecks size={16} />
+                <span>4-Point Lesson Outline</span>
+              </h4>
+              <div className="ai-outline-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+                {session.aiPlan.lessonOutline.map((step, idx) => (
+                  <div key={idx} className="ai-outline-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.85rem 1rem', background: 'rgba(15, 23, 42, 0.45)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+                    <div className="ai-outline-num" style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366F1, #A855F7)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, flexShrink: 0, marginTop: '2px' }}>
+                      {idx + 1}
+                    </div>
+                    <div className="ai-outline-text" style={{ flex: 1, fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                      {step}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Exactly 3 Practice Questions */}
+            {session.aiPlan.practiceQuestions?.length > 0 && (
+              <div className="ai-plan-section">
+                <h4 className="ai-col-heading" style={{ color: '#FBBF24', fontSize: '0.95rem' }}>
+                  <HelpCircle size={16} />
+                  <span>Targeted Practice Questions (3)</span>
+                </h4>
+                <div className="ai-questions-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.5rem' }}>
+                  {session.aiPlan.practiceQuestions.map((q, idx) => (
+                    <div key={idx} className="ai-question-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '10px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#FBBF24', background: 'rgba(245, 158, 11, 0.18)', padding: '0.2rem 0.5rem', borderRadius: '6px', flexShrink: 0 }}>
+                        Q{idx + 1}
+                      </span>
+                      <span style={{ flex: 1, fontSize: '0.875rem', color: '#FEF3C7', lineHeight: 1.5 }}>
+                        {q}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

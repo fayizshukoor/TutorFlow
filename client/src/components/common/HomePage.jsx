@@ -59,7 +59,7 @@ export default function HomePage() {
       <section className="hero">
         <div className="hero-pill">
           <Sparkles size={14} />
-          <span>Milestone 3: Student Management & RBAC Active</span>
+          <span>Production Ready • All Platform Features Live</span>
         </div>
 
         <h1 className="hero-title">
@@ -146,15 +146,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Milestone Highlight Banner */}
+      {/* Full Platform Highlight Banner */}
       <section className="milestone2-banner">
         <div className="milestone2-badge">
-          <Shield size={16} color="var(--primary)" />
-          <span>Milestone 3 Live</span>
+          <Sparkles size={16} color="var(--primary)" />
+          <span>Full Platform Active</span>
         </div>
-        <h2 className="milestone2-title">Student Management, Rosters & Security</h2>
+        <h2 className="milestone2-title">Complete 1-on-1 Tutoring Workflow</h2>
         <p className="milestone2-desc">
-          Enroll students, set target learning goals, track focus weak areas, and manage academic profiles with strict server-side ownership.
+          Manage student rosters, schedule sessions with double-booking prevention, record live debounced notes, generate Gemini AI lesson plans, and track interactive homework progress.
         </p>
         <div className="milestone2-actions">
           <button 

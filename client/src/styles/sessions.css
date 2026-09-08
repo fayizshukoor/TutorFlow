@@ -510,8 +510,9 @@
   gap: 1rem;
 }
 
-/* AI Review & Homework Design System (Milestone 5) */
-.ai-review-card {
+/* AI Review & Homework & Pre-Session Plan Design System (Milestone 5) */
+.ai-review-card,
+.ai-plan-workspace-card {
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
   border: 1px solid rgba(99, 102, 241, 0.35);
   border-radius: 20px;
@@ -525,7 +526,8 @@
   overflow: hidden;
 }
 
-.ai-review-card::before {
+.ai-review-card::before,
+.ai-plan-workspace-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -533,6 +535,19 @@
   right: 0;
   height: 3px;
   background: linear-gradient(90deg, #818CF8, #C084FC, #38BDF8);
+}
+
+.ai-sparkle-icon-wrap.plan {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(99, 102, 241, 0.25));
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38BDF8;
+}
+
+.ai-plan-prompt-box {
+  padding: 1.25rem 1.5rem;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px dashed rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
 }
 
 .ai-review-header {

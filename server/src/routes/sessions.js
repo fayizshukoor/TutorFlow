@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Session from '../models/Session.js';
 import Student from '../models/Student.js';
 import { authenticate, requireTutor, requireStudent } from '../middleware/auth.js';
-import { generateSessionReview } from '../services/geminiService.js';
+import { generateSessionReview, generateSessionPlan } from '../services/geminiService.js';
 
 const router = express.Router();
 
@@ -526,6 +526,98 @@ router.post('/:id/ai-review', authenticate, requireTutor, async (req, res) => {
     return res.status(statusCode).json({
       error: error.code || 'AI Service Error',
       message: error.message || 'Failed to generate AI review. Please check server Gemini configuration.'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/sessions/:id/ai-plan
+ * @desc    Generate Gemini-powered pre-session lesson plan and practice questions
+ * @access  Private (Tutor Only)
+ * @allowed Only sessions with status 'scheduled' or 'in_progress' (before completion)
+ */
+router.post('/:id/ai-plan', authenticate, requireTutor, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invalid session ID format.'
+      });
+    }
+
+    // Find session belonging to the authenticated tutor
+    const session = await Session.findOne({
+      _id: id,
+      tutorId: req.user._id
+    }).populate('studentId', 'name email subject currentLevel learningGoals weakAreas');
+
+    if (!session) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Session not found or does not belong to your tutor account.'
+      });
+    }
+
+    // Status validation: AI Plan can ONLY be generated BEFORE session is completed
+    if (session.status === 'completed' || session.status === 'ai_reviewed') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `AI session plans can only be generated before a session is completed. Current session status is '${session.status}'.`
+      });
+    }
+
+    const student = session.studentId || {};
+
+    // Load past completed/ai_reviewed sessions for context
+    const pastSessions = await Session.find({
+      studentId: student._id,
+      status: { $in: ['completed', 'ai_reviewed'] }
+    })
+      .sort({ scheduledAt: -1 })
+      .limit(3);
+
+    let pastSessionsSummary = '';
+    if (pastSessions.length > 0) {
+      pastSessionsSummary = pastSessions
+        .map((s, idx) => {
+          const rev = s.aiReview?.summary || s.notes || 'Completed session.';
+          const weak = s.aiReview?.areasForImprovement?.join(', ') || '';
+          return `Past Lesson #${idx + 1} (${s.topic}): ${rev}${weak ? ` [Flagged practice areas: ${weak}]` : ''}`;
+        })
+        .join('\n');
+    }
+
+    // Call Gemini AI Plan generator
+    const { aiPlan, modelUsed } = await generateSessionPlan({
+      topic: session.topic,
+      studentName: student.name || 'Student',
+      subject: student.subject || 'Tutoring Subject',
+      currentLevel: student.currentLevel || 'General',
+      learningGoals: student.learningGoals || [],
+      weakAreas: student.weakAreas || [],
+      durationMinutes: session.durationMinutes || 60,
+      pastSessionsSummary
+    });
+
+    // Save AI plan without modifying session lifecycle status
+    session.aiPlan = aiPlan;
+    await session.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'AI session plan generated successfully.',
+      modelUsed,
+      aiPlan: session.aiPlan,
+      session
+    });
+  } catch (error) {
+    console.error('Generate AI session plan error:', error);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      error: error.code || 'AI Service Error',
+      message: error.message || 'Failed to generate AI session plan. Please check server Gemini configuration.'
     });
   }
 });

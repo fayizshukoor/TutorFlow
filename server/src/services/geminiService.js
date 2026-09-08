@@ -70,15 +70,21 @@ function extractAndParseJson(rawText) {
   try {
     return JSON.parse(jsonSubstring);
   } catch (parseError) {
-    // Attempt minor repair: remove trailing commas before closing braces/brackets
-    const sanitized = jsonSubstring
-      .replace(/,\s*([\]}])/g, '$1')
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' '); // remove control characters
+    // Attempt repairs:
+    let sanitized = jsonSubstring
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+      .replace(/,\s*([\]}])/g, '$1');
 
     try {
       return JSON.parse(sanitized);
-    } catch (secondError) {
-      throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+    } catch {
+      // Escape raw backslashes that are not followed by valid JSON escape chars: " \ / b f n r t u
+      sanitized = sanitized.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
+      try {
+        return JSON.parse(sanitized);
+      } catch (thirdError) {
+        throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+      }
     }
   }
 }
@@ -175,7 +181,7 @@ async function callGeminiApi(model, apiKey, promptText, timeoutMs = 22000) {
         contents: [{ parts: [{ text: promptText }] }],
         generationConfig: {
           temperature: 0.2, // lower temperature for deterministic, rapid JSON output
-          maxOutputTokens: 1200 // compact output token boundary to prevent runaway strings
+          maxOutputTokens: 2500 // ample output token boundary to prevent runaway strings or truncated JSON
         }
       })
     });
@@ -334,6 +340,221 @@ export async function generateSessionReview(params) {
     lastError?.statusCode === 504
       ? 'Gemini AI service timed out while synthesizing the review. Please click Retry to generate the review.'
       : (lastError?.message || 'Gemini AI service was temporarily unable to generate the review. Please try again.')
+  );
+  finalError.statusCode = lastError?.statusCode || 502;
+  finalError.code = 'AI_SERVICE_UNAVAILABLE';
+  throw finalError;
+}
+
+/**
+ * Build pre-session lesson plan prompt for Gemini.
+ */
+function buildPlanPrompt(params, isCompactRetry = false) {
+  const {
+    topic,
+    studentName = 'Student',
+    subject = 'Tutoring Subject',
+    currentLevel = 'General',
+    learningGoals = [],
+    weakAreas = [],
+    durationMinutes = 60,
+    pastSessionsSummary = ''
+  } = params;
+
+  const goals = Array.isArray(learningGoals) && learningGoals.length > 0
+    ? learningGoals.slice(0, 3).join(', ')
+    : 'General conceptual mastery';
+
+  const weak = Array.isArray(weakAreas) && weakAreas.length > 0
+    ? weakAreas.slice(0, 3).join(', ')
+    : 'None flagged';
+
+  const historyContext = pastSessionsSummary && pastSessionsSummary.trim()
+    ? `\nPREVIOUS SESSIONS CONTEXT & PAST AI FEEDBACK:\n${pastSessionsSummary.trim().slice(0, 700)}\n`
+    : '';
+
+  if (isCompactRetry) {
+    return `You are an expert tutor for TutorFlow.
+Create a compact pre-session plan for a ${durationMinutes}-min ${subject} (${currentLevel}) session with ${studentName}.
+Topic: ${topic}
+Weak Areas: ${weak}
+Goals: ${goals}
+${historyContext}
+Respond ONLY with this JSON schema. EXACTLY 4 outline items and EXACTLY 3 questions:
+{
+  "learningObjectives": ["Objective 1", "Objective 2"],
+  "lessonOutline": [
+    "1. Warm-up & diagnostic review (10m)",
+    "2. Guided core concept explanation (20m)",
+    "3. Practice problem solving (20m)",
+    "4. Wrap-up and synthesis (10m)"
+  ],
+  "practiceQuestions": [
+    "Question 1: Foundational practice",
+    "Question 2: Core concept exercise",
+    "Question 3: Application challenge"
+  ]
+}`;
+  }
+
+  return `You are an expert pedagogical assistant for TutorFlow, an online 1-on-1 tutoring platform.
+Design a highly tailored pre-session study plan and 3 targeted practice questions for an upcoming tutoring session.
+
+STUDENT: ${studentName} | SUBJECT: ${subject} (${currentLevel})
+STUDENT LEARNING GOALS: ${goals}
+AREAS NEEDING REINFORCEMENT: ${weak}
+UPCOMING SESSION TOPIC: ${topic} (${durationMinutes} minutes)
+${historyContext}
+INSTRUCTIONS:
+Respond ONLY with a valid JSON object strictly matching this schema. Ensure EXACTLY 4 structured lesson outline steps and EXACTLY 3 practice questions:
+{
+  "learningObjectives": [
+    "Clear, measurable learning objective #1",
+    "Clear, measurable learning objective #2"
+  ],
+  "lessonOutline": [
+    "1. Warm-Up & Diagnostic Review: Assess foundational understanding and prerequisite concepts",
+    "2. Core Concept Walkthrough: Guided instruction on core theory, formulas, and representative examples",
+    "3. Scaffolded Practice: Student solves targeted problems with tutor guidance and misconception correction",
+    "4. Synthesis & Wrap-Up: Exit check problem and recap of key takeaways"
+  ],
+  "practiceQuestions": [
+    "Practice Question 1 (Foundational concept check)",
+    "Practice Question 2 (Standard application problem)",
+    "Practice Question 3 (Challenging synthesis or multi-step problem addressing weak areas)"
+  ]
+}`;
+}
+
+/**
+ * Generate structured pre-session lesson plan using Gemini AI.
+ * Guaranteed to produce learningObjectives, exactly 4 lessonOutline items, and exactly 3 practiceQuestions.
+ *
+ * @param {Object} params
+ * @returns {Promise<{ aiPlan: Object, modelUsed: string }>}
+ */
+export async function generateSessionPlan(params) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey.trim() === '') {
+    const error = new Error('Gemini API Key is not configured on the server. Please set GEMINI_API_KEY in server environment variables.');
+    error.statusCode = 503;
+    error.code = 'GEMINI_KEY_MISSING';
+    throw error;
+  }
+
+  const { topic = 'Tutoring Session', subject = 'Tutoring' } = params;
+  const models = getSupportedModels();
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      const prompt = buildPlanPrompt(params, false);
+      let rawText;
+      try {
+        rawText = await callGeminiApi(model, apiKey, prompt, 22000);
+      } catch (callErr) {
+        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503) {
+          lastError = callErr;
+          continue;
+        }
+        throw callErr;
+      }
+
+      let parsed;
+      try {
+        parsed = extractAndParseJson(rawText);
+      } catch (parseErr) {
+        console.warn(`[geminiService] Plan JSON parse failed on model ${model}: ${parseErr.message}. Retrying with compact prompt...`);
+        try {
+          const compactPrompt = buildPlanPrompt(params, true);
+          const retryText = await callGeminiApi(model, apiKey, compactPrompt, 18000);
+          parsed = extractAndParseJson(retryText);
+        } catch (retryErr) {
+          console.warn(`[geminiService] Plan retry on model ${model} failed: ${retryErr.message}. Falling back to next model...`);
+          lastError = retryErr;
+          continue;
+        }
+      }
+
+      // 1. Objectives
+      const objectives = Array.isArray(parsed.learningObjectives) && parsed.learningObjectives.length > 0
+        ? parsed.learningObjectives.map(String).filter(Boolean)
+        : [
+            `Master core conceptual foundations and problem-solving strategies for ${topic}.`,
+            `Apply key formulas and methods to representative ${subject} exercises with accuracy.`
+          ];
+
+      // 2. Exact 4-step Lesson Outline
+      let rawOutline = Array.isArray(parsed.lessonOutline)
+        ? parsed.lessonOutline.map(String).filter(Boolean)
+        : [];
+
+      const defaultOutlineSteps = [
+        `1. Warm-Up & Diagnostic Review: Verify prerequisite mastery and review relevant formulas for ${topic}.`,
+        `2. Core Concept Walkthrough: Guided instruction and interactive examples on ${topic}.`,
+        `3. Scaffolded Practice: Work through multi-step exercises with immediate tutor feedback.`,
+        `4. Synthesis & Wrap-Up: Exit check problem and preview of key homework takeaways.`
+      ];
+
+      let lessonOutline = [];
+      if (rawOutline.length >= 4) {
+        lessonOutline = rawOutline.slice(0, 4);
+      } else {
+        lessonOutline = [...rawOutline];
+        for (let i = lessonOutline.length; i < 4; i++) {
+          lessonOutline.push(defaultOutlineSteps[i]);
+        }
+      }
+
+      // 3. Exact 3 Practice Questions
+      let rawQuestions = Array.isArray(parsed.practiceQuestions)
+        ? parsed.practiceQuestions.map(String).filter(Boolean)
+        : [];
+
+      const defaultQuestions = [
+        `Practice Problem 1 (Foundational): Explain and apply the core definitions of ${topic} to a basic exercise.`,
+        `Practice Problem 2 (Standard): Solve a standard multi-step problem testing primary principles of ${topic}.`,
+        `Practice Problem 3 (Synthesis): Solve an advanced application problem on ${topic}, demonstrating full work and reasoning.`
+      ];
+
+      let practiceQuestions = [];
+      if (rawQuestions.length >= 3) {
+        practiceQuestions = rawQuestions.slice(0, 3);
+      } else {
+        practiceQuestions = [...rawQuestions];
+        for (let i = practiceQuestions.length; i < 3; i++) {
+          practiceQuestions.push(defaultQuestions[i]);
+        }
+      }
+
+      const structuredPlan = {
+        learningObjectives: objectives,
+        lessonOutline: lessonOutline,
+        practiceQuestions: practiceQuestions,
+        generatedAt: new Date(),
+        modelUsed: model
+      };
+
+      return {
+        aiPlan: structuredPlan,
+        modelUsed: model
+      };
+    } catch (err) {
+      lastError = err;
+      if (err.status === 429) {
+        const rateLimitErr = new Error('Gemini AI API rate limit reached. Please wait a moment and click Retry.');
+        rateLimitErr.statusCode = 429;
+        rateLimitErr.code = 'RATE_LIMIT_EXCEEDED';
+        throw rateLimitErr;
+      }
+    }
+  }
+
+  const finalError = new Error(
+    lastError?.statusCode === 504
+      ? 'Gemini AI service timed out while synthesizing the lesson plan. Please click Retry to generate the plan.'
+      : (lastError?.message || 'Gemini AI service was temporarily unable to generate the lesson plan. Please try again.')
   );
   finalError.statusCode = lastError?.statusCode || 502;
   finalError.code = 'AI_SERVICE_UNAVAILABLE';
