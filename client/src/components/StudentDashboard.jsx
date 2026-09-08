@@ -1,12 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Calendar, Bot, Shield, Lock, ArrowRight } from 'lucide-react';
+import {
+  BookOpen,
+  Calendar,
+  Bot,
+  Shield,
+  Lock,
+  ArrowRight,
+  Target,
+  AlertTriangle,
+  GraduationCap,
+  CheckCircle2,
+  RefreshCw
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import RoleTester from './RoleTester';
 
 export default function StudentDashboard({ onAttemptTutorPage }) {
-  const { user } = useAuth();
+  const { user, authFetch } = useAuth();
   const navigate = useNavigate();
+
+  const [studentProfile, setStudentProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStudentProfile() {
+      try {
+        const res = await authFetch('/students/profile/me');
+        if (res.ok) {
+          const data = await res.json();
+          setStudentProfile(data.student);
+        }
+      } catch (err) {
+        console.error('Failed to load student profile for me:', err);
+      } finally {
+        setProfileLoading(false);
+      }
+    }
+    loadStudentProfile();
+  }, [authFetch]);
 
   const handleAttemptTutor = () => {
     if (onAttemptTutorPage) {
@@ -30,11 +62,11 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
                 <Shield size={13} />
                 STUDENT ACCOUNT
               </span>
-              <span className="milestone-badge">Milestone 2 Verified</span>
+              <span className="milestone-badge">Milestone 3 Verified</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Sam'}</h1>
             <p className="dashboard-subtitle">
-              You have student access. You can view your assigned tutor, scheduled sessions, and AI summaries.
+              You have student access. You can view your enrolled subjects, learning goals, scheduled sessions, and AI summaries.
             </p>
           </div>
         </div>
@@ -84,6 +116,81 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
         </button>
       </div>
 
+      {/* Enrolled Student Profile Overview (Milestone 3) */}
+      <div className="dashboard-section">
+        <h2 className="section-title">My Academic Profile & Learning Goals</h2>
+        {profileLoading ? (
+          <div className="student-profile-summary-card loading">
+            <RefreshCw size={20} className="spin" />
+            <span>Loading your academic profile...</span>
+          </div>
+        ) : studentProfile ? (
+          <div className="student-profile-summary-card">
+            <div className="summary-header">
+              <div className="summary-badges">
+                <span className="badge-subject-lg">
+                  <BookOpen size={14} />
+                  {studentProfile.subject}
+                </span>
+                <span className="badge-level-lg">
+                  <GraduationCap size={14} />
+                  {studentProfile.currentLevel}
+                </span>
+              </div>
+              <span className="summary-linked-badge">
+                <CheckCircle2 size={13} /> Active Enrollment
+              </span>
+            </div>
+
+            <div className="summary-grid">
+              {/* Target Learning Goals */}
+              <div className="summary-col">
+                <h4 className="summary-col-title">
+                  <Target size={16} className="text-accent" />
+                  <span>Target Learning Goals ({studentProfile.learningGoals?.length || 0})</span>
+                </h4>
+                {studentProfile.learningGoals && studentProfile.learningGoals.length > 0 ? (
+                  <div className="summary-chips-list">
+                    {studentProfile.learningGoals.map((goal, idx) => (
+                      <div key={idx} className="summary-chip goal">
+                        <div className="bullet-dot goal" />
+                        <span>{goal}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-subtext">No specific goals set yet.</p>
+                )}
+              </div>
+
+              {/* Weak Areas & Focus Topics */}
+              <div className="summary-col">
+                <h4 className="summary-col-title">
+                  <AlertTriangle size={16} className="text-warning" />
+                  <span>Areas Needing Practice ({studentProfile.weakAreas?.length || 0})</span>
+                </h4>
+                {studentProfile.weakAreas && studentProfile.weakAreas.length > 0 ? (
+                  <div className="summary-chips-list">
+                    {studentProfile.weakAreas.map((area, idx) => (
+                      <div key={idx} className="summary-chip weak">
+                        <div className="bullet-dot weak" />
+                        <span>{area}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-subtext">No weak areas flagged yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="student-profile-summary-card empty">
+            <p>No student academic profile is linked to your user account yet.</p>
+          </div>
+        )}
+      </div>
+
       {/* Feature / Milestone Preview Grid */}
       <div className="dashboard-section">
         <h2 className="section-title">Student Portal & Upcoming Milestones</h2>
@@ -114,14 +221,16 @@ export default function StudentDashboard({ onAttemptTutorPage }) {
             </p>
           </div>
 
-          <div className="preview-card">
+          <div className="preview-card live-card">
             <div className="preview-card-header">
-              <div className="preview-icon-box">
+              <div className="preview-icon-box" style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#06B6D4' }}>
                 <BookOpen size={20} />
               </div>
-              <span className="preview-tag-next">Milestone 3</span>
+              <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
+                Milestone 3 Live
+              </span>
             </div>
-            <h3 className="preview-card-title">Learning Goals</h3>
+            <h3 className="preview-card-title">Academic Profile</h3>
             <p className="preview-card-desc">
               Track progress across target subjects and key concepts identified by your tutor.
             </p>

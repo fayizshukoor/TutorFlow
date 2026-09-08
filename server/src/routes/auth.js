@@ -63,12 +63,13 @@ router.post('/login', async (req, res) => {
     }
 
     // Generate JWT
+    const jwtSecret = process.env.JWT_SECRET || 'tutorflow_dev_secret_key_2026_jwt_auth_milestone2';
     const token = jwt.sign(
       {
         userId: user._id,
         role: user.role
       },
-      JWT_SECRET,
+      jwtSecret,
       { expiresIn: JWT_EXPIRES_IN }
     );
 

@@ -1,7 +1,8 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Calendar, Bot, Shield, ArrowRight, Lock } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Users, Calendar, Bot, Shield, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import StudentList from './StudentList';
 import RoleTester from './RoleTester';
 
 export default function TutorDashboard({ onNavigateToTutorConsole }) {
@@ -30,11 +31,11 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
                 <Shield size={13} />
                 TUTOR ACCOUNT
               </span>
-              <span className="milestone-badge">Milestone 2 Verified</span>
+              <span className="milestone-badge">Milestone 3 Active</span>
             </div>
             <h1 className="dashboard-title">Welcome back, {user?.name || 'Alex'}</h1>
             <p className="dashboard-subtitle">
-              You have full tutor administrative privileges. Manage student rosters, sessions, and AI summaries.
+              You have full tutor administrative privileges. Manage student rosters, learning targets, sessions, and AI summaries.
             </p>
           </div>
         </div>
@@ -79,20 +80,27 @@ export default function TutorDashboard({ onNavigateToTutorConsole }) {
         </button>
       </div>
 
-      {/* Feature / Milestone Preview Grid */}
+      {/* Milestone 3: Live Student Management Section */}
       <div className="dashboard-section">
-        <h2 className="section-title">Tutor Capabilities & Upcoming Milestones</h2>
+        <StudentList isCompact={false} />
+      </div>
+
+      {/* Feature / Milestone Roadmap Grid */}
+      <div className="dashboard-section">
+        <h2 className="section-title">Platform Capabilities & Upcoming Milestones</h2>
         <div className="preview-grid">
-          <div className="preview-card">
+          <div className="preview-card live-card">
             <div className="preview-card-header">
-              <div className="preview-icon-box">
+              <div className="preview-icon-box" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#818CF8' }}>
                 <Users size={20} />
               </div>
-              <span className="preview-tag-next">Milestone 3</span>
+              <span className="preview-tag-next" style={{ background: 'var(--success-bg)', color: 'var(--success)', border: '1px solid var(--success-border)' }}>
+                Milestone 3 Live
+              </span>
             </div>
             <h3 className="preview-card-title">Student Management</h3>
             <p className="preview-card-desc">
-              Create, view, and organize student profiles with subject tags, target goals, and skill weakness trackers.
+              Full student profiles with subject tags, learning goals, weak area focus tracking, and server-side tutor ownership security.
             </p>
           </div>
 

@@ -6,6 +6,8 @@ import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
 import TutorDashboard from './components/TutorDashboard';
 import TutorConsole from './components/TutorConsole';
+import StudentRosterPage from './components/StudentRosterPage';
+import StudentProfile from './components/StudentProfile';
 import StudentDashboard from './components/StudentDashboard';
 import AccessDenied from './components/AccessDenied';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -29,6 +31,22 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['tutor']}>
             <TutorDashboard />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: 'tutor/students',
+        element: (
+          <ProtectedRoute allowedRoles={['tutor']}>
+            <StudentRosterPage />
+          </ProtectedRoute>
+        )
+      },
+      {
+        path: 'tutor/students/:id',
+        element: (
+          <ProtectedRoute allowedRoles={['tutor']}>
+            <StudentProfile />
           </ProtectedRoute>
         )
       },

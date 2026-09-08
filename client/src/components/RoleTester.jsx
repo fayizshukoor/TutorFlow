@@ -10,28 +10,32 @@ export default function RoleTester() {
 
   const testEndpoints = [
     {
-      id: 'test',
-      path: '/auth/test',
-      label: 'GET /api/auth/test',
-      desc: 'All authenticated users (returns authenticated role)'
+      id: 'students-list',
+      path: '/students',
+      label: 'GET /api/students',
+      desc: 'Tutor-only student roster (Students get 403 Forbidden)',
+      role: 'tutor'
     },
     {
-      id: 'me',
-      path: '/auth/me',
-      label: 'GET /api/auth/me',
-      desc: 'Current user profile without password'
+      id: 'student-me',
+      path: '/students/profile/me',
+      label: 'GET /api/students/profile/me',
+      desc: 'Student self-profile (Tutors get 403 Forbidden)',
+      role: 'student'
     },
     {
       id: 'tutor-test',
       path: '/auth/tutor-test',
       label: 'GET /api/auth/tutor-test',
-      desc: 'Tutor-only route (Students get 403 Forbidden)'
+      desc: 'Tutor auth test route (Students get 403 Forbidden)',
+      role: 'tutor'
     },
     {
-      id: 'student-test',
-      path: '/auth/student-test',
-      label: 'GET /api/auth/student-test',
-      desc: 'Student-only route (Tutors get 403 Forbidden)'
+      id: 'auth-me',
+      path: '/auth/me',
+      label: 'GET /api/auth/me',
+      desc: 'Current user session profile',
+      role: 'all'
     }
   ];
 
@@ -75,9 +79,9 @@ export default function RoleTester() {
             <ShieldCheck size={20} />
           </div>
           <div>
-            <h3 className="tester-title">Live Server-Side Auth & Role Verifier</h3>
+            <h3 className="tester-title">Live Server-Side Auth & RBAC Verifier</h3>
             <p className="tester-subtitle">
-              Verify your active JWT token and test server-side role gating in real time
+              Verify your active JWT token and test server-side student ownership & role gating in real time
             </p>
           </div>
         </div>
@@ -85,13 +89,10 @@ export default function RoleTester() {
 
       <div className="tester-buttons-grid">
         {testEndpoints.map((ep) => {
-          const isTutorRoute = ep.id === 'tutor-test';
-          const isStudentRoute = ep.id === 'student-test';
           const willSucceed =
-            ep.id === 'test' ||
-            ep.id === 'me' ||
-            (isTutorRoute && user?.role === 'tutor') ||
-            (isStudentRoute && user?.role === 'student');
+            ep.role === 'all' ||
+            (ep.role === 'tutor' && user?.role === 'tutor') ||
+            (ep.role === 'student' && user?.role === 'student');
 
           return (
             <button

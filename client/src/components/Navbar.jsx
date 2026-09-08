@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Lock } from 'lucide-react';
+import { BookOpen, LogOut, User as UserIcon, LayoutDashboard, Home, Lock, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
@@ -48,10 +48,20 @@ export default function Navbar() {
             </NavLink>
           )}
 
+          {isAuthenticated && user?.role === 'tutor' && (
+            <NavLink 
+              to="/tutor/students"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
+              <Users size={16} />
+              <span>Students</span>
+            </NavLink>
+          )}
+
           {/* Test Access Control button to easily demo student attempting tutor view */}
           {isAuthenticated && (
             <NavLink 
-              to="/tutor"
+              to="/tutor/console"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               title={user?.role === 'student' ? 'Click to test student accessing tutor-only route (Access Denied demo)' : 'Tutor Management Console'}
             >

@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './db.js';
 import authRoutes from './routes/auth.js';
+import studentRoutes from './routes/students.js';
 
 // Load environment variables
 dotenv.config();
@@ -35,6 +36,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/students', studentRoutes);
 
 // Health Check Endpoint (Milestone 1 requirement preserved)
 app.get('/api/health', (req, res) => {
@@ -52,7 +54,11 @@ app.get('/', (req, res) => {
       health: 'GET /api/health',
       login: 'POST /api/auth/login',
       me: 'GET /api/auth/me',
-      test: 'GET /api/auth/test'
+      test: 'GET /api/auth/test',
+      students: 'GET /api/students (Tutor only)',
+      createStudent: 'POST /api/students (Tutor only)',
+      studentById: 'GET /api/students/:id (Tutor only)',
+      updateStudent: 'PUT /api/students/:id (Tutor only)'
     }
   });
 });

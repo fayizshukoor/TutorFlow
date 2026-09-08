@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import { connectDB } from './db.js';
 import User from './models/User.js';
+import Student from './models/Student.js';
 
 dotenv.config();
 
@@ -21,6 +22,22 @@ export const SEED_CREDENTIALS = {
     password: 'StudentPass123!',
     role: 'student'
   }
+};
+
+export const SEED_STUDENT_PROFILE = {
+  name: 'Sam Chen',
+  email: 'student@tutorflow.com',
+  subject: 'AP Calculus BC',
+  currentLevel: 'Grade 12 / Advanced',
+  learningGoals: [
+    'Master Taylor & Maclaurin Series convergence tests',
+    'Achieve a 5 on the AP Calculus BC Exam',
+    'Improve speed and accuracy on Free Response Questions (FRQ)'
+  ],
+  weakAreas: [
+    'Integration by parts with trigonometric substitution',
+    'Parametric equations & polar area calculus'
+  ]
 };
 
 export async function seedUsers() {
@@ -45,10 +62,10 @@ export async function seedUsers() {
       },
       { upsert: true, new: true, runValidators: true }
     );
-    console.log(`✅ Tutor seeded: ${tutor.name} (${tutor.email}) [ID: ${tutor._id}]`);
+    console.log(`✅ Tutor user seeded: ${tutor.name} (${tutor.email}) [ID: ${tutor._id}]`);
 
     // 3. Upsert Student User (linking to the tutor)
-    let student = await User.findOneAndUpdate(
+    let studentUser = await User.findOneAndUpdate(
       { email: SEED_CREDENTIALS.student.email },
       {
         name: SEED_CREDENTIALS.student.name,
@@ -59,16 +76,37 @@ export async function seedUsers() {
       },
       { upsert: true, new: true, runValidators: true }
     );
-    console.log(`✅ Student seeded: ${student.name} (${student.email}) [Assigned Tutor ID: ${student.tutorId}]`);
+    console.log(`✅ Student user seeded: ${studentUser.name} (${studentUser.email}) [User ID: ${studentUser._id}, Assigned Tutor: ${studentUser.tutorId}]`);
+
+    // 4. Upsert Student Profile (linking userId to studentUser._id and tutorId to tutor._id)
+    let studentProfile = await Student.findOneAndUpdate(
+      { userId: studentUser._id },
+      {
+        userId: studentUser._id,
+        tutorId: tutor._id,
+        name: SEED_STUDENT_PROFILE.name,
+        email: SEED_STUDENT_PROFILE.email,
+        subject: SEED_STUDENT_PROFILE.subject,
+        currentLevel: SEED_STUDENT_PROFILE.currentLevel,
+        learningGoals: SEED_STUDENT_PROFILE.learningGoals,
+        weakAreas: SEED_STUDENT_PROFILE.weakAreas
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+    console.log(`✅ Student profile seeded: ${studentProfile.name} (${studentProfile.subject} - ${studentProfile.currentLevel}) [Profile ID: ${studentProfile._id}]`);
 
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('====================================================');
     console.log('Test Accounts Summary:');
     console.log(`👨‍🏫 Tutor:   ${SEED_CREDENTIALS.tutor.email}   / ${SEED_CREDENTIALS.tutor.password}`);
     console.log(`👨‍🎓 Student: ${SEED_CREDENTIALS.student.email} / ${SEED_CREDENTIALS.student.password}`);
+    console.log('Linked Student Profile:');
+    console.log(`📚 Subject: ${studentProfile.subject} | Level: ${studentProfile.currentLevel}`);
+    console.log(`🎯 Goals:   ${studentProfile.learningGoals.join(', ')}`);
+    console.log(`⚠️ Weak:    ${studentProfile.weakAreas.join(', ')}`);
     console.log('====================================================\n');
 
-    return { tutor, student };
+    return { tutor, studentUser, studentProfile };
   } catch (error) {
     console.error('❌ Error during seeding:', error.message);
     throw error;
