@@ -1,42 +1,231 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 /**
  * Gemini AI Review & Homework Service for TutorFlow
- * Secure, server-side service utilizing Google Gemini to synthesize
- * completed tutoring sessions into structured reviews and personalized homework.
+ * Secure, server-side service utilizing Google Gemini with fallback hierarchy,
+ * strict timeout management, and robust JSON extraction.
  */
 
+// Candidate models ordered from fastest/highest capability to fallback models
 function getSupportedModels() {
   const customModel = process.env.GEMINI_MODEL;
-  const list = [customModel, 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'].filter(Boolean);
+  const list = [
+    customModel,
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash'
+  ].filter(Boolean);
   return [...new Set(list)];
 }
 
 /**
+ * Sanitize error messages to guarantee no API keys or sensitive query params leak.
+ */
+function sanitizeErrorMessage(message) {
+  if (!message || typeof message !== 'string') {
+    return 'An unexpected error occurred during AI review generation.';
+  }
+  return message
+    .replace(/key=[a-zA-Z0-9_\-]+/gi, 'key=REDACTED')
+    .replace(/AIza[0-9A-Za-z-_]{35}/gi, '[REDACTED_KEY]')
+    .replace(/AQ\.[0-9A-Za-z-_]{40,}/gi, '[REDACTED_KEY]');
+}
+
+/**
+ * Safely extracts and parses JSON object from Gemini response text.
+ * Handles markdown code fences, surrounding commentary, and minor JSON quirks.
+ */
+function extractAndParseJson(rawText) {
+  if (!rawText || typeof rawText !== 'string') {
+    throw new Error('Empty response received from Gemini.');
+  }
+
+  let cleaned = rawText.trim();
+
+  // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+
+  // Find outermost curly braces { ... }
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    throw new Error('No valid JSON object structure found in response.');
+  }
+
+  const jsonSubstring = cleaned.substring(firstBrace, lastBrace + 1);
+
+  try {
+    return JSON.parse(jsonSubstring);
+  } catch (parseError) {
+    // Attempt minor repair: remove trailing commas before closing braces/brackets
+    const sanitized = jsonSubstring
+      .replace(/,\s*([\]}])/g, '$1')
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' '); // remove control characters
+
+    try {
+      return JSON.parse(sanitized);
+    } catch (secondError) {
+      throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+    }
+  }
+}
+
+/**
+ * Build concise pedagogical prompt for Gemini.
+ */
+function buildPrompt(params, isCompactRetry = false) {
+  const {
+    topic,
+    notes,
+    studentName = 'Student',
+    subject = 'General Subject',
+    currentLevel = 'General',
+    learningGoals = [],
+    weakAreas = [],
+    durationMinutes = 60
+  } = params;
+
+  const notesText = notes && notes.trim()
+    ? notes.trim().slice(0, 800) // limit input notes size to prevent runaway prompt
+    : 'Session completed successfully. Covered core concepts and practice problems.';
+
+  const goals = Array.isArray(learningGoals) && learningGoals.length > 0
+    ? learningGoals.slice(0, 3).join(', ')
+    : 'General mastery';
+
+  const weak = Array.isArray(weakAreas) && weakAreas.length > 0
+    ? weakAreas.slice(0, 3).join(', ')
+    : 'None flagged';
+
+  if (isCompactRetry) {
+    return `You are a tutoring assistant for TutorFlow.
+Create a compact JSON review for a ${durationMinutes}-minute ${subject} (${currentLevel}) session with ${studentName}.
+Topic: ${topic}
+Notes: ${notesText}
+
+Respond ONLY with this compact JSON schema. Keep all strings short (1 sentence each):
+{
+  "summary": "Brief 1-2 sentence overview of what was covered.",
+  "keyTopicsCovered": ["Topic 1", "Topic 2"],
+  "studentStrengths": ["Strength 1", "Strength 2"],
+  "areasForImprovement": ["Focus area 1", "Focus area 2"],
+  "recommendedNextSteps": ["Next step 1", "Next step 2"],
+  "homework": {
+    "title": "Short Homework Title",
+    "description": "Short 1-sentence instruction.",
+    "tasks": ["Task 1", "Task 2", "Task 3"]
+  }
+}`;
+  }
+
+  return `You are an expert pedagogical assistant for TutorFlow, an online 1-on-1 tutoring platform.
+Analyze this completed tutoring session and produce a structured, high-value lesson review and homework assignment.
+
+STUDENT: ${studentName} | SUBJECT: ${subject} (${currentLevel})
+GOALS: ${goals}
+AREAS FOR PRACTICE: ${weak}
+SESSION TOPIC: ${topic} (${durationMinutes} mins)
+LIVE NOTES:
+${notesText}
+
+INSTRUCTIONS:
+Respond ONLY with a valid, compact JSON object strictly matching this schema. Keep descriptions concise to ensure fast generation:
+{
+  "summary": "Concise 2-sentence synthesis of concepts covered and student performance.",
+  "keyTopicsCovered": ["Key concept or problem type covered #1", "Key concept #2"],
+  "studentStrengths": ["Demonstrated competency or breakthrough #1", "Positive pedagogical observation #2"],
+  "areasForImprovement": ["Misconception or topic needing reinforcement #1", "Topic needing practice #2"],
+  "recommendedNextSteps": ["Action item before next lesson #1", "Focus topic for upcoming lesson #2"],
+  "homework": {
+    "title": "Clear assignment title",
+    "description": "Short explanation of purpose (~30-45 mins)",
+    "tasks": ["Actionable problem/drill #1", "Actionable problem/drill #2", "Self-check task #3"]
+  }
+}`;
+}
+
+/**
+ * Low-level call to Gemini REST API with strict AbortController timeout.
+ */
+async function callGeminiApi(model, apiKey, promptText, timeoutMs = 22000) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: {
+          temperature: 0.2, // lower temperature for deterministic, rapid JSON output
+          maxOutputTokens: 1200 // compact output token boundary to prevent runaway strings
+        }
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let msg = `Gemini API returned status ${response.status}`;
+      try {
+        const errJson = JSON.parse(errorText);
+        if (errJson?.error?.message) {
+          msg = errJson.error.message;
+        }
+      } catch {
+        // ignore json parse error
+      }
+      const err = new Error(sanitizeErrorMessage(msg));
+      err.status = response.status;
+      throw err;
+    }
+
+    const data = await response.json();
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!rawText) {
+      throw new Error('Gemini API returned an empty response body.');
+    }
+
+    return rawText;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(`Gemini AI generation timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+      timeoutErr.statusCode = 504;
+      timeoutErr.code = 'TIMEOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  }
+}
+
+/**
  * Generate a comprehensive structured session review and homework plan using Gemini.
+ * Includes multi-model fallback, retry logic, timeout protection, and robust JSON validation.
  *
  * @param {Object} params
- * @param {string} params.topic - Session topic/goal
- * @param {string} params.notes - Tutor's final live whiteboard and pedagogical notes
- * @param {string} params.studentName - Student's name
- * @param {string} params.subject - Student's subject (e.g. AP Calculus BC)
- * @param {string} params.currentLevel - Student's current level (e.g. Grade 12 / Advanced)
- * @param {string[]} params.learningGoals - Student's enrolled learning goals
- * @param {string[]} params.weakAreas - Student's enrolled weak areas
- * @param {number} [params.durationMinutes] - Session duration in minutes
  * @returns {Promise<{ aiReview: Object, aiSummaryText: string, modelUsed: string }>}
  */
-export async function generateSessionReview({
-  topic,
-  notes,
-  studentName = 'Student',
-  subject = 'Tutoring Subject',
-  currentLevel = 'General',
-  learningGoals = [],
-  weakAreas = [],
-  durationMinutes = 60
-}) {
+export async function generateSessionReview(params) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey || apiKey.trim() === '') {
@@ -46,157 +235,75 @@ export async function generateSessionReview({
     throw error;
   }
 
-  // Construct prompt providing full session and student pedagogical context
-  const goalsText = Array.isArray(learningGoals) && learningGoals.length > 0
-    ? learningGoals.map((g, i) => `  ${i + 1}. ${g}`).join('\n')
-    : '  - General subject mastery';
-
-  const weakAreasText = Array.isArray(weakAreas) && weakAreas.length > 0
-    ? weakAreas.map((w, i) => `  ${i + 1}. ${w}`).join('\n')
-    : '  - None specified';
-
-  const notesText = notes && notes.trim()
-    ? notes.trim()
-    : 'Session completed successfully. Tutor covered foundational concepts and practice exercises.';
-
-  const prompt = `You are an expert pedagogical AI teaching assistant for TutorFlow, an elite 1-on-1 online tutoring platform.
-Analyze the following completed tutoring session and tutor notes, and produce a structured, high-value lesson review and customized homework assignment for the student.
-
---- STUDENT CONTEXT ---
-Student Name: ${studentName}
-Subject: ${subject}
-Current Level: ${currentLevel}
-Target Learning Goals:
-${goalsText}
-Identified Focus/Weak Areas:
-${weakAreasText}
-
---- SESSION DATA ---
-Topic / Goal: ${topic}
-Duration: ${durationMinutes} minutes
-Tutor's Session Notes:
-${notesText}
-
---- INSTRUCTIONS ---
-Respond ONLY with a valid JSON object strictly matching this schema. Do not include markdown formatting or commentary outside the JSON.
-
-{
-  "summary": "Concise 2-3 sentence executive synthesis of what was accomplished during this session and overall student engagement.",
-  "keyTopicsCovered": [
-    "Specific concept, method, or problem type covered #1",
-    "Specific concept, method, or problem type covered #2"
-  ],
-  "studentStrengths": [
-    "Specific skill, intuition, or concept the student demonstrated mastery of during the session",
-    "Positive pedagogical observation or breakthrough"
-  ],
-  "areasForImprovement": [
-    "Specific weak point, misconception, or calculation pattern needing targeted reinforcement",
-    "Concept requiring further independent practice"
-  ],
-  "recommendedNextSteps": [
-    "Immediate action item for student before next session",
-    "Proposed focus topic for the upcoming tutoring session"
-  ],
-  "homework": {
-    "title": "Clear, engaging title for the assignment",
-    "description": "Short explanation of the purpose and expected time commitment (e.g. ~30-45 mins)",
-    "tasks": [
-      "Concrete actionable problem/drill #1 with specific guidance",
-      "Concrete actionable problem/drill #2 with specific guidance",
-      "Reflection or summary task #3"
-    ]
-  }
-}`;
-
+  const { topic = 'Tutoring Session', subject = 'Tutoring' } = params;
+  const models = getSupportedModels();
   let lastError = null;
 
-  for (const model of getSupportedModels()) {
+  for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-      // 25-second request timeout controller
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.4,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 2048
-          }
-        })
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        let parsedErrorMsg = `Gemini API returned status ${response.status}`;
-        try {
-          const errJson = JSON.parse(errorBody);
-          if (errJson?.error?.message) {
-            parsedErrorMsg = errJson.error.message;
-          }
-        } catch {
-          // ignore json parse error
-        }
-
-        // If model not found or unavailable, try next candidate model
-        if (response.status === 404 || response.status === 503) {
-          lastError = new Error(`Model ${model} unavailable: ${parsedErrorMsg}`);
+      // Primary Attempt on current model
+      const prompt = buildPrompt(params, false);
+      let rawText;
+      try {
+        rawText = await callGeminiApi(model, apiKey, prompt, 22000);
+      } catch (callErr) {
+        // If timed out or unavailable, try next model
+        if (callErr.statusCode === 504 || callErr.status === 404 || callErr.status === 503) {
+          lastError = callErr;
           continue;
         }
-
-        const err = new Error(`Gemini AI service error: ${parsedErrorMsg}`);
-        err.statusCode = response.status === 429 ? 429 : 502;
-        throw err;
+        throw callErr;
       }
 
-      const data = await response.json();
-      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!rawText) {
-        throw new Error('Gemini returned an empty response.');
+      // Try parsing JSON from response
+      let parsed;
+      try {
+        parsed = extractAndParseJson(rawText);
+      } catch (parseErr) {
+        console.warn(`[geminiService] JSON parse failed on model ${model}: ${parseErr.message}. Retrying with compact prompt...`);
+        // Retry once on same model with compact prompt
+        try {
+          const compactPrompt = buildPrompt(params, true);
+          const retryText = await callGeminiApi(model, apiKey, compactPrompt, 18000);
+          parsed = extractAndParseJson(retryText);
+        } catch (retryErr) {
+          console.warn(`[geminiService] Retry on model ${model} failed: ${retryErr.message}. Falling back to next model...`);
+          lastError = retryErr;
+          continue;
+        }
       }
 
-      // Clean markdown fences if present
-      let cleanJson = rawText.trim();
-      if (cleanJson.startsWith('```json')) {
-        cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
-      } else if (cleanJson.startsWith('```')) {
-        cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-
-      const parsed = JSON.parse(cleanJson);
-
-      // Validate and structure fields
+      // Normalize and sanitize structured fields
       const structuredReview = {
-        summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : `${topic} session review completed.`,
+        summary: typeof parsed.summary === 'string' && parsed.summary.trim()
+          ? parsed.summary.trim()
+          : `${topic} lesson review completed successfully.`,
         keyTopicsCovered: Array.isArray(parsed.keyTopicsCovered) && parsed.keyTopicsCovered.length > 0
-          ? parsed.keyTopicsCovered.map(String)
+          ? parsed.keyTopicsCovered.map(String).filter(Boolean)
           : [topic],
         studentStrengths: Array.isArray(parsed.studentStrengths) && parsed.studentStrengths.length > 0
-          ? parsed.studentStrengths.map(String)
-          : ['Active participation and effort throughout the lesson.'],
+          ? parsed.studentStrengths.map(String).filter(Boolean)
+          : ['Demonstrated understanding of core concepts during guided exercises.'],
         areasForImprovement: Array.isArray(parsed.areasForImprovement) && parsed.areasForImprovement.length > 0
-          ? parsed.areasForImprovement.map(String)
-          : ['Continue practicing core formulas and foundational problems.'],
+          ? parsed.areasForImprovement.map(String).filter(Boolean)
+          : ['Continue practicing independent problem-solving and formula application.'],
         recommendedNextSteps: Array.isArray(parsed.recommendedNextSteps) && parsed.recommendedNextSteps.length > 0
-          ? parsed.recommendedNextSteps.map(String)
-          : ['Complete assigned homework before the next scheduled session.'],
+          ? parsed.recommendedNextSteps.map(String).filter(Boolean)
+          : ['Complete assigned homework drill prior to the upcoming lesson.'],
         homework: {
-          title: parsed.homework?.title || `${subject}: Practice & Mastery Drill`,
-          description: parsed.homework?.description || `Independent practice problems based on ${topic}.`,
+          title: parsed.homework?.title && typeof parsed.homework.title === 'string'
+            ? parsed.homework.title.trim()
+            : `${subject}: Mastery Practice Drill`,
+          description: parsed.homework?.description && typeof parsed.homework.description === 'string'
+            ? parsed.homework.description.trim()
+            : `Independent practice drill based on ${topic} (~30 mins).`,
           tasks: Array.isArray(parsed.homework?.tasks) && parsed.homework.tasks.length > 0
-            ? parsed.homework.tasks.map(String)
-            : [`Review notes and practice 3-5 problems related to ${topic}.`]
+            ? parsed.homework.tasks.map(String).filter(Boolean)
+            : [
+                `Review session notes and formulas for ${topic}.`,
+                `Solve 3-5 practice problems focusing on identified weak areas.`,
+                `Prepare any questions on challenging steps for the next lesson.`
+              ]
         },
         generatedAt: new Date(),
         modelUsed: model
@@ -211,18 +318,24 @@ Respond ONLY with a valid JSON object strictly matching this schema. Do not incl
         modelUsed: model
       };
     } catch (err) {
-      if (err.name === 'AbortError') {
-        const timeoutErr = new Error('Gemini AI generation request timed out after 25 seconds. Please try again.');
-        timeoutErr.statusCode = 504;
-        throw timeoutErr;
-      }
       lastError = err;
-      // If error is an explicit status code error from Gemini (e.g. 429, 502), rethrow
-      if (err.statusCode && err.statusCode !== 502) {
-        throw err;
+      // If error is an unrecoverable client quota error (429), rethrow immediately with clear message
+      if (err.status === 429) {
+        const rateLimitErr = new Error('Gemini AI API rate limit reached. Please wait a moment and click Retry.');
+        rateLimitErr.statusCode = 429;
+        rateLimitErr.code = 'RATE_LIMIT_EXCEEDED';
+        throw rateLimitErr;
       }
     }
   }
 
-  throw lastError || new Error('Failed to generate AI review from any available Gemini models.');
+  // All models and retries exhausted - return controlled, friendly error
+  const finalError = new Error(
+    lastError?.statusCode === 504
+      ? 'Gemini AI service timed out while synthesizing the review. Please click Retry to generate the review.'
+      : (lastError?.message || 'Gemini AI service was temporarily unable to generate the review. Please try again.')
+  );
+  finalError.statusCode = lastError?.statusCode || 502;
+  finalError.code = 'AI_SERVICE_UNAVAILABLE';
+  throw finalError;
 }

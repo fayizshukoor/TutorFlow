@@ -159,14 +159,14 @@ export default function SessionWorkspace() {
     try {
       const { ok, data } = await sessionApi.generateAiReview(id, { regenerate });
       if (!ok) {
-        throw new Error(data.message || data.error || 'Failed to generate AI review.');
+        throw new Error(data.message || data.error || 'Gemini AI was temporarily unable to generate the review. Please click Retry.');
       }
       setSession(data.session);
       setAiSuccessMessage('Gemini AI review and homework generated successfully!');
       setTimeout(() => setAiSuccessMessage(null), 5000);
     } catch (err) {
       console.error('Generate AI review error:', err);
-      setAiError(err.message || 'An error occurred while generating the AI review.');
+      setAiError(err.message || 'Gemini AI review generation timed out or encountered an issue. Please click Retry to try again.');
     } finally {
       setAiGenerating(false);
     }
@@ -357,16 +357,20 @@ export default function SessionWorkspace() {
       )}
 
       {aiError && (
-        <div className="form-alert error" style={{ marginBottom: '1.5rem' }}>
-          <AlertTriangle size={16} />
-          <span>{aiError}</span>
+        <div className="form-alert error" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '0.875rem' }}>{aiError}</span>
+          </div>
           {isTutor && (
             <button
               onClick={() => handleGenerateAiReview(session.status === 'ai_reviewed')}
               className="btn-secondary"
-              style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', marginLeft: 'auto' }}
+              disabled={aiGenerating}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
             >
-              Retry
+              <RefreshCw size={13} className={aiGenerating ? 'spin' : ''} />
+              <span>Retry Generation</span>
             </button>
           )}
         </div>

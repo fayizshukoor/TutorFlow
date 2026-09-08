@@ -148,7 +148,7 @@ async function runMilestone5Tests() {
       `Homework assignment structured with title "${liveAiData.session?.aiReview?.homework?.title}" and ${liveAiData.session?.aiReview?.homework?.tasks?.length} tasks`
     );
 
-    // 6. Test Regeneration Guard
+    // 6. Test Regeneration Guard and Successful Regeneration
     console.log('\n--- Test 4: AI Review Re-generation Guard ---');
     const duplicateAiRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/ai-review`, {
       method: 'POST',
@@ -161,6 +161,19 @@ async function runMilestone5Tests() {
     assert(
       duplicateAiRes.status === 400,
       `Duplicate generation without regenerate: true is rejected with 400 Bad Request (Actual: ${duplicateAiRes.status})`
+    );
+
+    const allowRegenerateRes = await fetch(`${BASE_URL}/sessions/${completedSession._id}/ai-review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tutorToken}`
+      },
+      body: JSON.stringify({ regenerate: true })
+    });
+    assert(
+      allowRegenerateRes.status === 200,
+      `Regeneration with regenerate: true succeeds with 200 OK (Actual: ${allowRegenerateRes.status})`
     );
 
     // 7. Test Student Read-Only Access
