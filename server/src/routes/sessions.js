@@ -71,6 +71,15 @@ router.post('/', authenticate, requireTutor, async (req, res) => {
         message: 'Invalid scheduledAt date format. Please provide a valid ISO date string.'
       });
     }
+
+    // Disallow past dates (allowing 2 minutes grace period for network latency / clock variance)
+    const now = new Date();
+    if (parsedDate.getTime() < now.getTime() - 2 * 60 * 1000) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Cannot schedule a session in the past. Please select a future date and time.'
+      });
+    }
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
       return res.status(400).json({
         error: 'Validation Error',

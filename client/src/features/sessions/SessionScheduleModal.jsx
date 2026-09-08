@@ -93,6 +93,11 @@ export default function SessionScheduleModal({ isOpen, onClose, onSessionCreated
       return;
     }
 
+    if (scheduledDate.getTime() < Date.now() - 60000) {
+      setFormError('Cannot schedule a session in the past. Please select a future date and time.');
+      return;
+    }
+
     setSaving(true);
     try {
       const { ok, data } = await sessionApi.create({
@@ -271,6 +276,15 @@ export default function SessionScheduleModal({ isOpen, onClose, onSessionCreated
                 id="scheduled-datetime"
                 type="datetime-local"
                 className="form-input-clean"
+                min={(() => {
+                  const now = new Date();
+                  const yr = now.getFullYear();
+                  const mo = String(now.getMonth() + 1).padStart(2, '0');
+                  const da = String(now.getDate()).padStart(2, '0');
+                  const hr = String(now.getHours()).padStart(2, '0');
+                  const mi = String(now.getMinutes()).padStart(2, '0');
+                  return `${yr}-${mo}-${da}T${hr}:${mi}`;
+                })()}
                 value={scheduledAtLocal}
                 onChange={(e) => setScheduledAtLocal(e.target.value)}
                 disabled={saving}
