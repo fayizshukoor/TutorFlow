@@ -12,7 +12,6 @@ import {
   RefreshCw, 
   Server,
   ArrowRight,
-  Shield,
   LogIn
 } from 'lucide-react';
 import { useAuth, API_BASE_URL } from '../../context/AuthContext';

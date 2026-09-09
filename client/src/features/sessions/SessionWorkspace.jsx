@@ -17,8 +17,6 @@ import {
   RefreshCw,
   Check,
   Save,
-  CheckSquare,
-  Square,
   ArrowRight,
   GraduationCap,
   ListChecks,

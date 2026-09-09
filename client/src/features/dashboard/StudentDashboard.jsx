@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
   Clock,
-  Bot,
   Shield,
-  ArrowRight,
   Target,
   AlertTriangle,
   GraduationCap,
@@ -21,7 +19,6 @@ import { studentApi, sessionApi } from '../../services/api';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [studentProfile, setStudentProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -70,13 +67,6 @@ export default function StudentDashboard() {
       hour12: true
     });
   };
-
-  const upcomingSessions = sessions.filter(
-    (s) => s.status === 'scheduled' || s.status === 'in_progress'
-  );
-  const pastSessions = sessions.filter(
-    (s) => s.status === 'completed' || s.status === 'ai_reviewed'
-  );
 
   return (
     <div className="dashboard-container">

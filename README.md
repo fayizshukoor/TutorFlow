@@ -64,7 +64,6 @@ TutorFlow/
 │   │   │   └── AuthContext.jsx         # JWT session management & auth API state
 │   │   ├── features/       # Feature modules
 │   │   │   ├── dashboard/
-│   │   │   │   ├── RoleTester.jsx      # Live interactive RBAC endpoint verifier
 │   │   │   │   ├── StudentDashboard.jsx# Student view with enrolled academic profile
 │   │   │   │   ├── TutorConsole.jsx    # Protected tutor verification console
 │   │   │   │   └── TutorDashboard.jsx  # Tutor administration overview

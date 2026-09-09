@@ -6,8 +6,7 @@ import {
   User,
   AlertTriangle,
   X,
-  Check,
-  Sparkles
+  Check
 } from 'lucide-react';
 import { studentApi, sessionApi } from '../../services/api';
 
