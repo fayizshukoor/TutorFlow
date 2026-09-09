@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import studentRoutes from './routes/students.js';
 import sessionRoutes from './routes/sessions.js';
@@ -10,10 +9,7 @@ import sessionRoutes from './routes/sessions.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-
-// MongoDB connection will be established before server listens
 
 // Middleware
 app.use(
@@ -48,26 +44,9 @@ app.get('/api/health', (req, res) => {
 // Root welcome message
 app.get('/', (req, res) => {
   res.status(200).json({
-    name: 'TutorFlow API',
-    version: '1.0.0',
-    status: 'running',
-    healthCheck: '/api/health',
-    endpoints: {
-      health: 'GET /api/health',
-      login: 'POST /api/auth/login',
-      me: 'GET /api/auth/me',
-      test: 'GET /api/auth/test',
-      students: 'GET /api/students (Tutor only)',
-      createStudent: 'POST /api/students (Tutor only)',
-      studentById: 'GET /api/students/:id (Tutor only)',
-      updateStudent: 'PUT /api/students/:id (Tutor only)',
-      sessions: 'GET /api/sessions (Tutor only)',
-      createSession: 'POST /api/sessions (Tutor only)',
-      studentSessions: 'GET /api/sessions/my-sessions (Student only)',
-      sessionById: 'GET /api/sessions/:id',
-      sessionStatus: 'PATCH /api/sessions/:id/status (Tutor only)',
-      sessionNotes: 'PATCH /api/sessions/:id/notes (Tutor only, in_progress only)'
-    }
+    message: 'TutorFlow API is running',
+    status: 'ok',
+    healthCheck: '/api/health'
   });
 });
 
@@ -88,22 +67,4 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server after verifying MongoDB connection
-async function startServer() {
-  try {
-    await connectDB();
-    const server = app.listen(PORT, () => {
-      console.log(`🚀 TutorFlow server running on http://localhost:${PORT}`);
-    });
-    return server;
-  } catch (err) {
-    console.error('❌ Fatal error: Server startup aborted because MongoDB connection failed.');
-    console.error(`   Details: ${err.message}`);
-    process.exit(1);
-  }
-}
-
-startServer();
-
-export { startServer };
 export default app;

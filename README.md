@@ -92,16 +92,24 @@ TutorFlow/
 │   ├── src/
 │   │   ├── config/         # Server configuration
 │   │   │   └── db.js                   # MongoDB connection handler
+│   │   ├── controllers/    # Request handling & HTTP orchestration
+│   │   │   ├── authController.js       # Auth endpoints (/login, /me, /test)
+│   │   │   ├── studentController.js    # Student CRUD & progress summary
+│   │   │   └── sessionController.js    # Session CRUD, AI reviews & plans
+│   │   ├── services/       # Domain business logic
+│   │   │   ├── authService.js          # Authentication & JWT issuance
+│   │   │   ├── studentService.js       # Student DB queries & progress orchestration
+│   │   │   ├── sessionService.js       # Conflict checking & lifecycle validation
+│   │   │   └── geminiService.js        # Gemini AI plans, reviews & summaries
 │   │   ├── middleware/     # Auth & RBAC middleware (authenticate, requireTutor, requireStudent)
-│   │   ├── models/         # Mongoose models
-│   │   │   ├── Student.js              # Student schema (userId, tutorId, goals, weakAreas)
-│   │   │   └── User.js                 # User schema (roles: tutor, student)
-│   │   ├── routes/         # Express routers
-│   │   │   ├── auth.js                 # Auth endpoints (/login, /me, /test)
-│   │   │   └── students.js             # Tutor student CRUD & ownership checks
-│   │   ├── scripts/        # Operational and CLI scripts
-│   │   │   └── seed.js                 # Idempotent database seed script (Users & Student Profile)
-│   │   └── index.js        # Express app entry & health endpoint
+│   │   ├── models/         # Mongoose models (User, Student, Session)
+│   │   ├── routes/         # Express route mappings
+│   │   │   ├── auth.js
+│   │   │   ├── students.js
+│   │   │   └── sessions.js
+│   │   ├── scripts/        # Operational and CLI scripts (seed, automated test suites)
+│   │   ├── app.js          # Express app setup, middleware, routes & error handling
+│   │   └── server.js       # Server entry point (MongoDB connection & app.listen)
 │   ├── .env.example        # Server environment template
 │   └── package.json
 │
